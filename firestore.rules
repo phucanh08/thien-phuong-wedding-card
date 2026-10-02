@@ -37,13 +37,17 @@ service cloud.firestore {
       return !(key in data) || data[key] is string;
     }
 
+    function shortString(v) {
+      return v is string && v.size() <= 50;
+    }
+
     // Rules không có vòng lặp: events ≤ 10 nên duyệt từng chỉ số.
-    function allStrings(l) {
-      return (l.size() < 1 || l[0] is string) && (l.size() < 2 || l[1] is string)
-        && (l.size() < 3 || l[2] is string) && (l.size() < 4 || l[3] is string)
-        && (l.size() < 5 || l[4] is string) && (l.size() < 6 || l[5] is string)
-        && (l.size() < 7 || l[6] is string) && (l.size() < 8 || l[7] is string)
-        && (l.size() < 9 || l[8] is string) && (l.size() < 10 || l[9] is string);
+    function allShortStrings(l) {
+      return (l.size() < 1 || shortString(l[0])) && (l.size() < 2 || shortString(l[1]))
+        && (l.size() < 3 || shortString(l[2])) && (l.size() < 4 || shortString(l[3]))
+        && (l.size() < 5 || shortString(l[4])) && (l.size() < 6 || shortString(l[5]))
+        && (l.size() < 7 || shortString(l[6])) && (l.size() < 8 || shortString(l[7]))
+        && (l.size() < 9 || shortString(l[8])) && (l.size() < 10 || shortString(l[9]));
     }
 
     function guestExists(code) {
@@ -58,18 +62,18 @@ service cloud.firestore {
         && (!("name" in data) || data.name.size() <= 60)
         && data.attending in ["yes", "no", "maybe"]
         && data.count is int && data.count >= 0 && data.count <= 20
-        && data.events is list && data.events.size() <= 10 && allStrings(data.events)
+        && data.events is list && data.events.size() <= 10 && allShortStrings(data.events)
         && (!("note" in data) || (data.note is string && data.note.size() <= 500))
-        && data.updatedAt is timestamp;
+        && data.updatedAt == request.time;
     }
 
     function validWish(data) {
       return data.keys().hasOnly(["name", "message", "code", "createdAt"])
         && data.keys().hasAll(["name", "message", "code", "createdAt"])
-        && data.name is string && data.name.size() <= 60
-        && data.message is string && data.message.size() <= 500
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 60
+        && data.message is string && data.message.size() > 0 && data.message.size() <= 500
         && (data.code == null || data.code is string)
-        && data.createdAt is timestamp;
+        && data.createdAt == request.time;
     }
 
     function validOwnAccessRequest(data) {

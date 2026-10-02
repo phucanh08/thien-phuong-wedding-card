@@ -54,6 +54,65 @@
         if (alt != null) img.alt = alt;
     }
 
+    // Ảnh có cặp nhỏ/lớn ({ small, large }, xem v2GalleryGrid.imagePair): hiện bản nhỏ ngay, bản lớn tải ngầm
+    // khi ảnh sắp vào màn hình (when = 'near', mặc định), ngay sau bản nhỏ (when = 'now', ảnh màn hình đầu),
+    // hay khi nơi gọi tự gọi loadLarge (when = 'manual', băng ảnh Album). Bản lớn giải mã xong mới đổi src nên
+    // không nháy; hộp ảnh do CSS cố định kích thước nên không xê dịch. Bản lớn lỗi (404…) -> giữ bản nhỏ.
+    const imagePair = url => window.v2GalleryGrid.imagePair(url);
+    const pendingLarge = new WeakMap();
+    const nearCallbacks = new WeakMap();
+    let nearObserver = null;
+
+    function setImgPair(img, pair, alt, when = 'near') {
+        const small = safeUrl(pair.small), large = safeUrl(pair.large);
+        setImg(img, small || large, alt);
+        if (!small || !large || large === small) return;
+        pendingLarge.set(img, large);
+        if (when === 'now') loadLarge(img);
+        else if (when === 'near') whenNear(img, () => loadLarge(img));
+    }
+
+    function loadLarge(img) {
+        const large = pendingLarge.get(img);
+        if (!large) return;
+        pendingLarge.delete(img);
+        // Bản nhỏ xong (hoặc lỗi) mới tải bản lớn để không tranh đường truyền với ảnh đang chờ hiện
+        const smallSettled = img.complete ? Promise.resolve() : new Promise(resolve => {
+            img.addEventListener('load', resolve, { once: true });
+            img.addEventListener('error', resolve, { once: true });
+        });
+        smallSettled.then(() => preloadLarge(large)).then(() => { img.src = large; }, () => {});
+    }
+
+    // Mỗi URL bản lớn tải một lần (ảnh phong bì và banner thường cùng ảnh; bản lỗi không thử lại)
+    const largeLoads = new Map();
+
+    function preloadLarge(url) {
+        if (!largeLoads.has(url)) {
+            const preload = new Image();
+            preload.src = url;
+            largeLoads.set(url, preload.decode ? preload.decode() : new Promise((resolve, reject) => {
+                preload.onload = resolve;
+                preload.onerror = reject;
+            }));
+        }
+        return largeLoads.get(url);
+    }
+
+    // "Sắp vào màn hình": cách mép màn hình nửa chiều cao màn hình
+    function whenNear(node, callback) {
+        if (!('IntersectionObserver' in window)) return callback();
+        if (!nearObserver) {
+            nearObserver = new IntersectionObserver(entries => entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                nearObserver.unobserve(entry.target);
+                nearCallbacks.get(entry.target)();
+            }), { rootMargin: '50% 0px' });
+        }
+        nearCallbacks.set(node, callback);
+        nearObserver.observe(node);
+    }
+
     const pad = n => String(n).padStart(2, '0');
 
     // "2026-10-24T16:30:00+07:00" -> { y, m, d, time: "16:30" }; chỉ có ngày thì time = null.
@@ -96,8 +155,8 @@
         const mainImage = wedding.mainImage || D.meta.previewImage;
 
         // Phong bì + banner
-        setImg(document.querySelector('[data-envelope-photo]'), wedding.envelopeImage || mainImage, '');
-        setImg(document.querySelector('[data-wd-img="main"]'), mainImage, `${groom.shortName} & ${bride.shortName}`);
+        setImgPair(document.querySelector('[data-envelope-photo]'), imagePair(wedding.envelopeImage || mainImage), '', 'now');
+        setImgPair(document.querySelector('[data-wd-img="main"]'), imagePair(mainImage), `${groom.shortName} & ${bride.shortName}`, 'now');
         setText('groom-short', groom.shortName);
         setText('bride-short', bride.shortName);
         setText('date-dots', `${pad(date.d)}.${pad(date.m)}.${date.y}`);
@@ -113,7 +172,7 @@
 
         // Lời dẫn, đếm ngược, lịch
         renderIntro(wedding);
-        setImg(document.querySelector('[data-wd-img="invitation"]'), wedding.invitationImage || mainImage, 'Ảnh cưới');
+        setImgPair(document.querySelector('[data-wd-img="invitation"]'), imagePair(wedding.invitationImage || mainImage), 'Ảnh cưới');
         setText('calendar-month', `Tháng ${MONTH_NAMES[date.m - 1]} ${date.y}`);
         renderCalendar(date, D.events);
         startCountdown(date);
@@ -356,13 +415,14 @@
     // Ô không có nguồn (album rỗng mà thiếu coverImages): giữ khung nền trống, không hiện ảnh vỡ hay chữ
     // alt; cả ba ô đều trống thì ẩn mục "With you".
     function renderCover(D) {
-        const sources = window.v2GalleryGrid.coverSources(D.gallery, D.wedding.coverImages).map(safeUrl);
+        const pairs = window.v2GalleryGrid.coverPairs(D.gallery, D.wedding.coverImages);
+        const shown = pairs.map(pair => Boolean(safeUrl(pair.small) || safeUrl(pair.large)));
         document.querySelectorAll('[data-cover]').forEach(img => {
-            const src = sources[+img.dataset.cover];
-            setImg(img, src, src ? 'Ảnh cưới' : '');
-            if (!src) img.style.visibility = 'hidden';
+            const i = +img.dataset.cover;
+            setImgPair(img, pairs[i], shown[i] ? 'Ảnh cưới' : '');
+            if (!shown[i]) img.style.visibility = 'hidden';
         });
-        if (!sources.some(Boolean)) document.querySelector('.v2-cover').hidden = true;
+        if (!shown.some(Boolean)) document.querySelector('.v2-cover').hidden = true;
     }
 
     function renderTimeline(events) {
@@ -438,7 +498,7 @@
                 const img = el('img');
                 img.loading = 'lazy';
                 img.dataset.pinchZoom = '';
-                setImg(img, s.image, s.title);
+                setImgPair(img, imagePair(s.image), s.title);
                 photo.append(img);
                 item.append(photo);
             }
@@ -470,7 +530,7 @@
             img.loading = i < 3 ? 'eager' : 'lazy';
             img.draggable = false;
             img.dataset.pinchZoom = '';
-            setImg(img, item.small, '');
+            setImgPair(img, item, '', 'manual');
             slide.append(img);
             return slide;
         });
@@ -487,6 +547,7 @@
 
     function createCarousel(stage, slides, dots) {
         let active = 0;
+        let near = false; // băng ảnh sắp vào màn hình: tải bản lớn của ảnh đang hiện (giữa và hai bên)
         const n = slides.length;
         const layout = () => {
             slides.forEach((slide, i) => {
@@ -504,6 +565,7 @@
                 slide.style.pointerEvents = visible ? 'auto' : 'none';
                 slide.tabIndex = off === 0 ? 0 : -1;
                 slide.classList.toggle('is-active', off === 0);
+                if (visible && near) loadLarge(slide.querySelector('img'));
             });
             dots.forEach((dot, i) => dot.classList.toggle('is-active', i === active));
         };
@@ -542,6 +604,7 @@
             else openGallery(+slide.dataset.index);
         });
         layout();
+        whenNear(stage, () => { near = true; layout(); });
         return { go };
     }
 

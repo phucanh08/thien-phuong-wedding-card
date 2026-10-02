@@ -1131,6 +1131,15 @@
                         <span data-aos="fade-left" class="member-name m-0">${esc(p.shortName)}${p.facebook ? ' /' : ''}</span>
                         ${p.facebook ? `<ul data-aos="fade-up" class="member-contact social-links d-flex p-0 m-0 mx-2"><li><a href="${esc(p.facebook)}" target="_blank" rel="noopener"><i class="bi bi-facebook"></i></a></li></ul>` : ''}
                     </div>`;
+                // Địa chỉ gia đình (tuỳ chọn, cùng field với v2): dưới tên bố mẹ, đưa vào bằng textContent
+                const address = typeof p.address === 'string' ? p.address.trim() : '';
+                if (address) {
+                    const line = document.createElement('div');
+                    line.className = 'parent-address small mt-1';
+                    line.setAttribute('data-wd', `${side}-address`);
+                    line.textContent = address;
+                    el.querySelector('.parent').append(line);
+                }
             });
 
             // Video

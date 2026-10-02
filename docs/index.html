@@ -516,7 +516,7 @@
                                     // Hàm chuyển có dấu thành không dấu
                                     function removeAccents(str) {
                                         return str.normalize('NFD')
-                                            .replace(/[̀-ͯ]/g, '')
+                                            .replace(/[\u0300-\u036f]/g, '')
                                             .replace(/đ/g, 'd')
                                             .replace(/Đ/g, 'D');
                                     }
@@ -748,8 +748,8 @@
 
     <!-- Menu nổi -->
     <div id="menu-access">
-        <div class="btn-menu-open" onclick="toggleMenuAccess()"><i class="bi bi-list text-white"></i></div>
-        <div class="btn-menu-close" onclick="toggleMenuAccess()"><i class="bi bi-x-lg text-white"></i></div>
+        <div class="btn-menu-open"><i class="bi bi-list text-white"></i></div>
+        <div class="btn-menu-close"><i class="bi bi-x-lg text-white"></i></div>
         <ul class="p-0 m-0 list-menu-icon">
             <li class="text-center">
                 <a href="#wishes" class="text-white">
@@ -772,18 +772,17 @@
             const btnMenuClose = document.querySelector('#menu-access > .btn-menu-close');
             const listMenuIcon = document.querySelector('#menu-access > .list-menu-icon');
 
-            function toggleMenuAccess() {
-                if (btnMenuClose.style.display !== 'none') {
-                    btnMenuOpen.style.display = '';
-                    btnMenuClose.style.display = 'none';
-                    listMenuIcon.style.opacity = '0';
-                    listMenuIcon.style.pointerEvents = 'none';
-                } else {
-                    btnMenuOpen.style.display = 'none';
-                    btnMenuClose.style.display = 'block';
-                    listMenuIcon.style.opacity = '1';
-                }
+            function setMenuAccess(open) {
+                btnMenuOpen.style.display = open ? 'none' : '';
+                btnMenuClose.style.display = open ? 'block' : 'none';
+                listMenuIcon.style.opacity = open ? '1' : '0';
+                listMenuIcon.style.pointerEvents = open ? '' : 'none';
             }
+
+            btnMenuOpen.addEventListener('click', function () { setMenuAccess(true); });
+            btnMenuClose.addEventListener('click', function () { setMenuAccess(false); });
+            // Như mẫu: menu tự mở sau 3 giây
+            setTimeout(function () { setMenuAccess(true); }, 3000);
         </script>
     </div>
 
@@ -1215,6 +1214,10 @@
         }
 
         document.addEventListener('click', function (event) {
+            // Bấm ra nền (chính #rsvp-modal / #donate-modal) thì đóng modal
+            if (event.target.id === 'rsvp-modal' || event.target.id === 'donate-modal') {
+                document.getElementById(event.target.id).style.display = 'none';
+            }
             if (event.target.closest('.buttonDonate')) {
                 openDonateModal();
             } else if (event.target.closest('.donate-modal-close')) {

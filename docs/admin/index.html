@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="image-cropper.css">
+  <link rel="stylesheet" href="content-editor.css">
 </head>
 <body>
   <!-- Đang tải: hiện tới khi biết trạng thái đăng nhập -->
@@ -112,6 +114,7 @@
         <a href="#khach-moi" data-section="khach-moi">Khách mời</a>
         <a href="#xac-nhan" data-section="xac-nhan">Xác nhận &amp; lời chúc</a>
         <a href="#thong-ke" data-section="thong-ke">Thống kê</a>
+        <a href="#noi-dung" data-section="noi-dung">Nội dung thiệp</a>
         <a href="#quan-tri" data-section="quan-tri">Quản trị viên <span class="badge rounded-pill text-bg-danger" id="pending-badge" hidden></span></a>
       </nav>
 
@@ -282,6 +285,72 @@
           <div id="stats-days" class="stats-days"></div>
           <p class="small text-secondary mt-3 mb-0" id="stats-note"></p>
         </section>
+
+        <section data-panel="noi-dung" hidden>
+          <div class="content-toolbar" id="content-toolbar">
+            <div class="min-w-0">
+              <h2 class="h4 mb-1">Nội dung thiệp</h2>
+              <p class="small text-secondary mb-0" id="content-status"></p>
+              <p class="small mb-0" id="content-published"></p>
+              <p class="small text-warning-emphasis mb-0" id="content-dirty" hidden>Có thay đổi chưa lưu.</p>
+            </div>
+            <div class="content-actions">
+              <span class="badge text-bg-danger" id="content-error-count" hidden></span>
+              <button type="button" class="btn btn-outline-secondary content-preview-toggle" id="btn-content-preview">Xem trước</button>
+              <button type="button" class="btn btn-outline-secondary" id="btn-content-history" data-content-action>Lịch sử</button>
+              <button type="button" class="btn btn-outline-secondary" id="btn-content-save" data-content-action>Lưu nháp</button>
+              <button type="button" class="btn btn-rose" id="btn-content-publish" data-content-action>Xuất bản</button>
+            </div>
+          </div>
+          <div class="alert py-2 small" id="content-alert" role="alert" hidden></div>
+
+          <div class="content-layout">
+            <div class="content-form" id="content-form"></div>
+
+            <aside class="content-preview-pane" id="content-preview-pane" aria-label="Xem trước thiệp">
+              <div class="content-preview-bar">
+                <select class="form-select form-select-sm" id="content-preview-version" aria-label="Phiên bản thiệp">
+                  <option value="v1">Thiệp v1</option>
+                  <option value="v2">Thiệp v2</option>
+                </select>
+                <span class="small text-secondary text-truncate" id="content-preview-state" aria-live="polite"></span>
+                <button type="button" class="btn-close content-preview-close" id="btn-content-preview-close" aria-label="Đóng xem trước"></button>
+              </div>
+              <div class="alert alert-info py-1 px-2 small mb-0" id="content-history-view" hidden>
+                <span id="content-history-view-text"></span>
+                <button type="button" class="btn btn-link btn-sm p-0" id="btn-content-history-back">Trở về bản đang sửa</button>
+              </div>
+              <div class="content-preview-phone">
+                <div class="content-preview-frames" id="content-preview-frames"></div>
+              </div>
+              <p class="small text-secondary mt-2 mb-0">Bản xem trước chỉ hiện trên máy bạn; khách chỉ thấy sau khi bấm Xuất bản.</p>
+            </aside>
+          </div>
+        </section>
+
+        <!-- Chọn / cắt / tải ảnh cho một ô nội dung -->
+        <dialog id="content-picker-dialog" class="guest-dialog" aria-labelledby="content-picker-title">
+          <div class="guest-dialog-header">
+            <h3 class="h5 mb-0" id="content-picker-title">Ảnh</h3>
+            <button type="button" class="btn-close" data-dialog-close aria-label="Đóng"></button>
+          </div>
+          <div class="guest-dialog-body">
+            <p class="small text-secondary" id="content-picker-hint"></p>
+            <div id="content-picker-body"></div>
+          </div>
+        </dialog>
+
+        <!-- Lịch sử xuất bản -->
+        <dialog id="content-history-dialog" class="guest-dialog" aria-labelledby="content-history-title">
+          <div class="guest-dialog-header">
+            <h3 class="h5 mb-0" id="content-history-title">Lịch sử xuất bản</h3>
+            <button type="button" class="btn-close" data-dialog-close aria-label="Đóng"></button>
+          </div>
+          <div class="guest-dialog-body">
+            <p class="small text-secondary">Mỗi lần xuất bản, bản khách đang thấy được lưu ở đây. Khôi phục = xuất bản lại bản đó.</p>
+            <div id="content-history-list" class="request-list"></div>
+          </div>
+        </dialog>
 
         <section data-panel="quan-tri" hidden>
           <h2 class="h4 mb-3">Quản trị viên</h2>

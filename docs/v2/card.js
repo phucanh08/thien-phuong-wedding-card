@@ -220,8 +220,11 @@
         setInterval(tick, 1000);
     }
 
-    function eventTimeText(p) {
-        return p.time ? `Vào ${p.time}, ${WEEKDAYS[p.weekday]}` : `${WEEKDAYS[p.weekday]} · Giờ: đang cập nhật`;
+    // Có giờ kết thúc khác giờ bắt đầu thì hiện khoảng "HH:mm – HH:mm"; kết thúc chỉ có ngày thì như cũ
+    function eventTimeText(p, end) {
+        if (!p.time) return `${WEEKDAYS[p.weekday]} · Giờ: đang cập nhật`;
+        const time = end && end.time && end.time !== p.time ? `${p.time} – ${end.time}` : p.time;
+        return `Vào ${time}, ${WEEKDAYS[p.weekday]}`;
     }
 
     // ===== Thêm vào lịch (common/calendar.js, cùng cấu hình với v1) =====
@@ -287,7 +290,7 @@
             card.dataset.eventKey = event.key;
             card.append(el('p', 'v2-event__side', event.side === 'bride' ? 'Nhà gái' : 'Nhà trai'));
             card.append(el('h3', 'v2-event__name', event.title));
-            const time = el('p', 'v2-event__time' + (p.time ? '' : ' is-pending'), eventTimeText(p));
+            const time = el('p', 'v2-event__time' + (p.time ? '' : ' is-pending'), eventTimeText(p, parseISO(event.endISO)));
             card.append(time);
             const dateRow = el('div', 'v2-event__date');
             dateRow.append(el('p', 'v2-event__date-side', `Tháng ${p.m}`), el('p', 'v2-event__day', pad(p.d)), el('p', 'v2-event__date-side', `Năm ${p.y}`));

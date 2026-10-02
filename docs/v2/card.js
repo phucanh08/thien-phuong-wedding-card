@@ -601,6 +601,8 @@
     }
 
     // ===== LightGallery (vendor dùng lại, không sửa) =====
+    // actualSize: false -> không có nút kính lúp trên thanh công cụ (Human 2026-10-03): phóng ảnh bằng chụm hai
+    // ngón (pinch-zoom.js). Chạm đúp vẫn do lg-zoom xử lý như cũ.
     let galleryData = [];
     let mainGallery = null;
     let lgReady = null;
@@ -630,7 +632,7 @@
                 download: false,
                 preload: 2,
                 appendSubHtmlTo: '.lg-item',
-                actualSize: true,
+                actualSize: false,
                 enableZoomAfter: 300,
                 licenseKey: LG_LICENSE
             });
@@ -647,7 +649,7 @@
             dynamic: true,
             dynamicEl: [{ src, thumb: src }],
             download: false,
-            actualSize: true,
+            actualSize: false,
             enableZoomAfter: 300,
             licenseKey: LG_LICENSE
         });

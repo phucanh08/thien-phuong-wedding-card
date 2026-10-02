@@ -1,10 +1,10 @@
 // Xem trước sống của thiệp khi đang sửa nội dung, không cần xuất bản và không sửa thiệp.
 //
-// Cách làm: iframe cùng origin, ghi (document.write) đúng HTML của /v1/ hoặc /v2/ kèm một script
+// Cách làm: iframe cùng origin, ghi (document.write) đúng HTML của /v2/ kèm một script
 // chạy đầu tiên thay fetch tới siteContent/published bằng data đang sửa. Thiệp vẫn đi qua
 // content-loader.js thật (validate + normalize), nên xem trước giống hệt thứ khách sẽ thấy.
 // document.open() gán URL của trang quản lý cho iframe: location.hostname vẫn là localhost khi chạy
-// local (thiệp tự nối emulator), <base href="../"> trỏ về gốc site như ở /v1/.
+// local (thiệp tự nối emulator), <base href="../"> trỏ về gốc site như ở /v2/.
 // Mỗi lần vẽ lại dùng iframe mới (window mới): script thường của thiệp khai báo biến toàn cục bằng
 // const, ghi lại vào cùng window sẽ lỗi "already declared".
 import { toFirestoreValue } from "./content-model.js";
@@ -15,15 +15,9 @@ const SITE_ROOT = new URL("../", import.meta.url);
 
 // Phần tử neo của từng mục trên thiệp, để "Xem phần này" cuộn tới.
 export const PREVIEW_ANCHORS = {
-  v1: {
-    meta: "", couple: "#couple", wedding: ".banner-section", invitation: "#invitation",
-    events: "#event", story: "#story", gallery: "#gallery", donate: "#donate", music: "",
-  },
-  v2: {
-    meta: "", couple: ".v2-couple", wedding: ".v2-lovestory", invitation: ".v2-family",
-    cover: ".v2-cover", thanks: ".v2-thanks", events: ".v2-events", story: "#v2-story-section",
-    gallery: ".v2-album", donate: ".v2-gift", music: "",
-  },
+  meta: "", couple: ".v2-couple", wedding: ".v2-lovestory", invitation: ".v2-family",
+  cover: ".v2-cover", thanks: ".v2-thanks", events: ".v2-events", story: "#v2-story-section",
+  gallery: ".v2-album", donate: ".v2-gift", music: "",
 };
 
 // Chạy trong iframe trước mọi script của thiệp. Nhạc tắt tiếng để sửa không bị phát nhạc; form
@@ -66,37 +60,26 @@ function bootstrapScript(firestoreDoc) {
 }
 
 export function createPreview({ container, onState }) {
-  const htmlCache = new Map();
-  let version = "v1";
+  let html = null;
   let data = null;
   let timer = null;
   let generation = 0;
   let current = null;
 
-  async function pageHtml(v) {
-    if (!htmlCache.has(v)) {
-      const response = await fetch(new URL(`${v}/index.html`, SITE_ROOT), { cache: "no-store" });
-      if (!response.ok) throw new Error(`Không tải được thiệp ${v} (HTTP ${response.status}).`);
-      htmlCache.set(v, await response.text());
+  async function pageHtml() {
+    if (html === null) {
+      const response = await fetch(new URL("v2/index.html", SITE_ROOT), { cache: "no-store" });
+      if (!response.ok) throw new Error(`Không tải được thiệp (HTTP ${response.status}).`);
+      html = await response.text();
     }
-    return htmlCache.get(v);
+    return html;
   }
 
-  function isReady(win, v) {
-    const doc = win.document;
-    if (!doc.documentElement.dataset.contentSource) return false;
-    if (v === "v1") {
-      const preloader = doc.getElementById("preloader");
-      return !preloader || preloader.style.display === "none";
-    }
-    return true;
-  }
-
-  async function waitReady(frame, v, gen) {
+  async function waitReady(frame, gen) {
     const end = Date.now() + READY_TIMEOUT_MS;
     while (Date.now() < end && gen === generation) {
       try {
-        if (isReady(frame.contentWindow, v)) return true;
+        if (frame.contentWindow.document.documentElement.dataset.contentSource) return true;
       } catch {
         // iframe đang dựng
       }
@@ -107,11 +90,10 @@ export function createPreview({ container, onState }) {
 
   async function build() {
     const gen = ++generation;
-    const v = version;
     onState?.({ state: "loading" });
-    let html;
+    let page;
     try {
-      html = await pageHtml(v);
+      page = await pageHtml();
     } catch (error) {
       onState?.({ state: "error", message: error.message });
       return;
@@ -120,17 +102,16 @@ export function createPreview({ container, onState }) {
 
     const frame = document.createElement("iframe");
     frame.className = "content-preview-frame is-pending";
-    frame.dataset.version = v;
-    frame.title = `Xem trước thiệp ${v}`;
+    frame.title = "Xem trước thiệp";
     container.append(frame);
-    const injected = html.replace(/<head([^>]*)>/i,
+    const injected = page.replace(/<head([^>]*)>/i,
       (tag) => `${tag}${bootstrapScript({ fields: { data: toFirestoreValue(data) } })}`);
     const doc = frame.contentDocument;
     doc.open();
     doc.write(injected);
     doc.close();
 
-    const ready = await waitReady(frame, v, gen);
+    const ready = await waitReady(frame, gen);
     if (gen !== generation) {
       frame.remove();
       return;
@@ -143,7 +124,7 @@ export function createPreview({ container, onState }) {
       scrollY = 0;
     }
     const win = frame.contentWindow;
-    if (v === "v2" && previous && previousOpened(previous)) await openEnvelope(win, gen);
+    if (previous && previousOpened(previous)) await openEnvelope(win, gen);
     if (gen !== generation) {
       frame.remove();
       return;
@@ -153,18 +134,18 @@ export function createPreview({ container, onState }) {
     previous?.remove();
     current = frame;
     const source = win.document.documentElement.dataset.contentSource || "";
-    onState?.({ state: ready ? "ready" : "slow", source, version: v });
+    onState?.({ state: ready ? "ready" : "slow", source });
   }
 
   function previousOpened(frame) {
     try {
-      return frame.dataset.version === "v2" && !frame.contentDocument.documentElement.classList.contains("v2-locked");
+      return !frame.contentDocument.documentElement.classList.contains("v2-locked");
     } catch {
       return false;
     }
   }
 
-  // v2 mở bằng phong bì: đã mở ở bản trước thì mở luôn ở bản mới (chạm giả nút mở).
+  // Thiệp mở bằng phong bì: đã mở ở bản trước thì mở luôn ở bản mới (chạm giả nút mở).
   async function openEnvelope(win, gen) {
     const button = win.document.getElementById("v2-envelope-open");
     if (!button) return;
@@ -184,14 +165,6 @@ export function createPreview({ container, onState }) {
       clearTimeout(timer);
       timer = setTimeout(build, immediate ? 0 : DEBOUNCE_MS);
     },
-    setVersion(next) {
-      if (next === version) return;
-      version = next;
-      if (data) this.update(data, { immediate: true });
-    },
-    get version() {
-      return version;
-    },
     // Cuộn được chưa: đã có khung vẽ xong và khung đang hiện (trên điện thoại lớp xem trước đóng thì
     // khung không có layout, cuộn không có tác dụng).
     get canScroll() {
@@ -200,10 +173,10 @@ export function createPreview({ container, onState }) {
     async scrollTo(section) {
       if (!current) return;
       const frame = current;
-      const selector = PREVIEW_ANCHORS[frame.dataset.version][section];
+      const selector = PREVIEW_ANCHORS[section];
       const win = frame.contentWindow;
-      // v2 đang đóng phong bì thì mở trước, nội dung mới cuộn được (mục ở đầu thiệp thì giữ phong bì).
-      if (selector && frame.dataset.version === "v2" && win.document.documentElement.classList.contains("v2-locked")) {
+      // Thiệp đang đóng phong bì thì mở trước, nội dung mới cuộn được (mục ở đầu thiệp thì giữ phong bì).
+      if (selector && win.document.documentElement.classList.contains("v2-locked")) {
         await openEnvelope(win, generation);
         if (frame !== current) return;
       }

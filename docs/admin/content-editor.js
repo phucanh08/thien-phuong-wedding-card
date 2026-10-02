@@ -4,7 +4,7 @@
 import { createContentStore, UNKNOWN_PUBLISHED } from "./content-store.js";
 import { createPreview } from "./content-preview.js";
 import {
-  validateContent, getPath, setPath, splitISO, joinISO, cardVersion, CARD_VERSIONS, galleryCountText, replaceGalleryImage,
+  validateContent, getPath, setPath, splitISO, joinISO, albumShown, setAlbumShown, galleryCountText, replaceGalleryImage,
 } from "./content-model.js";
 import { whereOf } from "./content-labels.js";
 import { createImagePicker } from "./image-picker.js";
@@ -16,7 +16,7 @@ const SITE_ROOT = new URL("../", import.meta.url);
 
 const SIDES = [["groom", "Chú rể"], ["bride", "Cô dâu"]];
 
-// Mô tả từng mục: hiện ở đâu trên thiệp (v1 là thiệp mặc định, v2 là mẫu "Nhà Có Hỷ").
+// Mô tả từng mục: hiện ở đâu trên thiệp.
 const SECTIONS = {
   meta: {
     title: "Thông tin chia sẻ link",
@@ -24,42 +24,33 @@ const SECTIONS = {
   },
   couple: {
     title: "Cô dâu & chú rể",
-    where: "v1: mục “Cô dâu & Chú rể” (ảnh chân dung, tên, bố mẹ, lời giới thiệu) và tên trên ảnh bìa. v2: tên trên phong bì và ảnh bìa, mục Gia đình hai bên.",
+    where: "Tên trên phong bì và ảnh bìa, mục Gia đình hai bên.",
   },
   wedding: {
     title: "Ngày cưới, ảnh bìa & lời ngỏ",
-    where: "v1: ảnh bìa đầu thiệp, lịch tháng và đồng hồ đếm ngược, mục Lời ngỏ. v2: phong bì mở thiệp, phần đếm ngược, câu dẫn, ba ảnh “With you”, lời cảm ơn cuối thiệp.",
+    where: "Phong bì mở thiệp, câu dẫn, đồng hồ đếm ngược và lịch tháng, ba ảnh “With you”, lời cảm ơn cuối thiệp.",
   },
   events: {
     title: "Sự kiện",
-    where: "v1: mục Sự kiện cưới (ảnh, giờ, địa điểm, nút chỉ đường, màu trang phục) và các lựa chọn trong form xác nhận tham dự. v2: thiệp mời từng sự kiện, Timeline và Dresscode. Không thêm/xoá sự kiện hay đổi mã sự kiện ở đây vì khách mời đang gắn theo mã.",
+    where: "Thiệp mời từng sự kiện, Timeline và Dresscode. Không thêm/xoá sự kiện hay đổi mã sự kiện ở đây vì khách mời đang gắn theo mã.",
   },
   story: {
     title: "Chuyện tình",
-    where: "v1 và v2: mục Chuyện tình, mỗi mốc gồm ngày, tiêu đề, đoạn kể và một ảnh dọc. Danh sách được để trống.",
+    where: "Mục Chuyện tình, mỗi mốc gồm ngày, tiêu đề, đoạn kể và một ảnh dọc. Danh sách được để trống.",
   },
   gallery: {
     title: "Album ảnh",
-    where: "v1: lưới ảnh mục Album (ảnh đánh dấu “Lưới v1”; không đánh dấu ảnh nào thì lấy 6 ảnh đầu). v2: băng chuyền Album (ảnh đánh dấu “Lưới v2”; không đánh dấu ảnh nào thì dùng Lưới v1), cũng là ảnh “With you” khi chưa đặt ảnh riêng. “Tất cả hình ảnh” / xem ảnh lớn mở cả album ở cả hai bản.",
+    where: "Băng ảnh mục Album gồm các ảnh đánh dấu “Hiện ở Album” (ít nhất 1 ảnh), cũng là ảnh “With you” khi chưa đặt ảnh riêng. “Tất cả hình ảnh” / xem ảnh lớn mở cả album.",
   },
   donate: {
     title: "Hộp mừng cưới",
-    where: "v1: nút Mừng cưới mở hộp mã QR và số tài khoản. v2: mục Hộp mừng cưới gần cuối thiệp.",
+    where: "Mục Hộp mừng cưới gần cuối thiệp: mã QR và số tài khoản.",
   },
   music: {
     title: "Nhạc nền",
     where: "Phát khi khách chạm mở thiệp, bật/tắt bằng nút loa ở góc màn hình. Tải lên MP3 hoặc M4A, tối đa 10 MB.",
   },
 };
-
-// site.version: thiệp khách vào từ link mời (docs/index.html).
-const VERSION_LABEL = {
-  v1: "V1 · Thiệp truyền thống",
-  v2: "V2 · Thiệp Nhà Có Hỷ",
-  both: "Cả 2 · khách tự chọn",
-};
-const VERSION_HINT = "Khách mở link mời (kể cả link có mã khách) sẽ vào thiệp này sau khi Xuất bản; "
-  + "“Cả 2” cho khách tự chọn, còn ô v1/v2 ở khung xem trước chỉ để xem thử.";
 
 const ORIGIN_LABEL = {
   draft: "Đang sửa bản nháp đã lưu",
@@ -231,13 +222,17 @@ export function createContentSection({ db, getUser, getIdToken }) {
     }
   }
 
-  // Nhãn nhỏ cạnh tên ô: ô này hiện ở V1, V2 hay cả hai (hoặc dùng làm gì nếu không hiện thành chữ).
+  // Nhãn nhỏ cạnh tên ô: dùng làm gì nếu ô không hiện thành chữ trên thiệp, và ghi chú nếu có.
   function whereBadge(path) {
     const { tag, note } = whereOf(path);
-    const badge = el("span", "content-where-badge", tag);
-    badge.dataset.where = tag;
-    if (!note) return [badge];
-    return [badge, el("span", "content-where-note", note)];
+    const parts = [];
+    if (tag) {
+      const badge = el("span", "content-where-badge", tag);
+      badge.dataset.where = tag;
+      parts.push(badge);
+    }
+    if (note) parts.push(el("span", "content-where-note", note));
+    return parts;
   }
 
   function fieldShell(parent, label, hint, id, path) {
@@ -361,23 +356,6 @@ export function createContentSection({ db, getUser, getIdToken }) {
     });
     body.append(select);
     register(path, label, wrap, [select], feedback);
-  }
-
-  function checkField(parent, { path, label }) {
-    const wrap = el("div", "form-check");
-    const input = el("input", "form-check-input");
-    input.type = "checkbox";
-    input.id = nextId("c");
-    input.dataset.path = path;
-    input.checked = getPath(state.data, path) === true;
-    const labelEl = el("label", "form-check-label", label);
-    labelEl.htmlFor = input.id;
-    input.addEventListener("change", () => {
-      setPath(state.data, path, input.checked ? true : undefined);
-      changed();
-    });
-    wrap.append(input, labelEl, ...whereBadge(path));
-    parent.append(wrap);
   }
 
   // Danh sách màu trang phục: ô chọn màu + ô mã (#rgb / #rrggbb).
@@ -559,30 +537,6 @@ export function createContentSection({ db, getUser, getIdToken }) {
     return box;
   }
 
-  // Phiên bản thiệp dùng chung cho mọi khách (site.version, C6). Thiếu hoặc sai giá trị thì thiệp
-  // dùng v1, nên ô hiện v1; chỉ ghi khi người dùng chọn. Không đổi bản đang xem trước.
-  function renderVersion(parent) {
-    const box = el("div", "content-version");
-    const id = nextId("f");
-    const { wrap, body, feedback } = fieldShell(box, "Phiên bản thiệp", VERSION_HINT, id, "site.version");
-    const select = el("select", "form-select");
-    select.id = id;
-    select.dataset.path = "site.version";
-    for (const value of CARD_VERSIONS) {
-      const option = el("option", "", VERSION_LABEL[value]);
-      option.value = value;
-      select.append(option);
-    }
-    select.value = cardVersion(state.data);
-    select.addEventListener("change", () => {
-      setPath(state.data, "site.version", select.value);
-      changed();
-    });
-    body.append(select);
-    register("site.version", "Phiên bản thiệp", wrap, [select], feedback);
-    parent.append(box);
-  }
-
   function renderMeta(parent) {
     const body = sectionCard(parent, "meta");
     textField(body, { path: "meta.title", label: "Tiêu đề", hint: "Tên tab trình duyệt và tiêu đề khung xem trước link." });
@@ -598,16 +552,13 @@ export function createContentSection({ db, getUser, getIdToken }) {
       const p = `couple.${side}`;
       textField(box, { path: `${p}.shortName`, label: `Tên ngắn ${name.toLowerCase()} *`, hint: "Bắt buộc. Tên lớn trên ảnh bìa và phong bì." });
       textField(box, { path: `${p}.fullName`, label: "Họ và tên", hint: "Bỏ trống thì dùng tên ngắn." });
-      imageField(box, { path: `${p}.photo`, label: `Ảnh chân dung ${name.toLowerCase()}`, kind: "portrait", variant: "small", hint: "Khung dọc 2:3 trong mục Cô dâu & Chú rể." });
       textField(box, { path: `${p}.father`, label: "Bố" });
       textField(box, { path: `${p}.mother`, label: "Mẹ" });
       textField(box, { path: `${p}.address`, label: "Địa chỉ gia đình", optional: true });
-      textField(box, { path: `${p}.bio`, label: "Lời giới thiệu", multiline: true });
-      urlField(box, { path: `${p}.facebook`, label: "Link Facebook", emptyValue: null, hint: "Bỏ trống để ẩn nút Facebook." });
     }
   }
 
-  // coverImages là mảng 3 URL (ô trống = ảnh mặc định của v2); cả 3 trống thì bỏ field.
+  // coverImages là mảng 3 URL (ô trống = lấy từ ảnh “Hiện ở Album”); cả 3 trống thì bỏ field.
   function setCover(index, value) {
     const current = Array.isArray(state.data.wedding.coverImages) ? [...state.data.wedding.coverImages] : [];
     while (current.length < 3) current.push("");
@@ -621,18 +572,17 @@ export function createContentSection({ db, getUser, getIdToken }) {
     if (!state.data.wedding || typeof state.data.wedding !== "object") state.data.wedding = {};
     const date = group(body, "Ngày cưới");
     dateField(date, { path: "wedding.dateISO", label: "Ngày cưới *", hint: "Bắt buộc. Lịch tháng và đồng hồ đếm ngược tính theo ngày này." });
-    textField(date, { path: "wedding.lunarText", label: "Ngày âm lịch", placeholder: "16 tháng 9 năm Bính Ngọ" });
     dateField(date, { path: "wedding.rsvpDeadline", label: "Hạn xác nhận tham dự", optional: true, hint: "Tuỳ chọn: câu “Vui lòng phản hồi trước…”. Bỏ trống để ẩn." });
 
     const images = group(body, "Ảnh");
-    imageField(images, { path: "wedding.mainImage", label: "Ảnh bìa", kind: "cover", variant: "large", hint: "v1: ảnh lớn đầu thiệp. v2: ảnh bìa trên cùng sau khi mở phong bì. Khung dọc 2:3." });
-    imageField(images, { path: "wedding.invitationImage", label: "Ảnh lời ngỏ", kind: "cover", variant: "large", hint: "v1: ảnh cạnh mục Lời ngỏ. v2: ảnh polaroid ở phần đếm ngược. Khung dọc 2:3." });
+    imageField(images, { path: "wedding.mainImage", label: "Ảnh bìa", kind: "cover", variant: "large", hint: "Ảnh bìa trên cùng sau khi mở phong bì. Khung dọc 2:3." });
+    imageField(images, { path: "wedding.invitationImage", label: "Ảnh lời ngỏ", kind: "cover", variant: "large", hint: "Ảnh polaroid ở phần đếm ngược. Khung dọc 2:3." });
     imageField(images, { path: "wedding.envelopeImage", label: "Ảnh trong phong bì", kind: "cover", variant: "large", optional: true, hint: "Tuỳ chọn: ảnh lộ ra khi mở phong bì. Bỏ trống thì dùng ảnh bìa." });
     ["Ảnh lớn", "Ảnh nhỏ trái", "Ảnh nhỏ phải"].forEach((name, i) => imageField(images, coverSpec(name, i)));
 
     const texts = group(body, "Lời ngỏ & lời cảm ơn");
     linesField(texts, { path: "wedding.invitationText", label: "Lời ngỏ", hint: "Mỗi dòng là một đoạn." });
-    textField(texts, { path: "wedding.introText", label: "Câu dẫn", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu ngay trên đồng hồ đếm ngược. Bỏ trống thì v2 hiện lời ngỏ (mục Lời ngỏ); không có lời ngỏ thì dùng câu mặc định." });
+    textField(texts, { path: "wedding.introText", label: "Câu dẫn", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu ngay trên đồng hồ đếm ngược. Bỏ trống thì hiện lời ngỏ (mục Lời ngỏ); không có lời ngỏ thì dùng câu mặc định." });
     textField(texts, { path: "wedding.thanksText", label: "Lời cảm ơn", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu dưới chữ “Thank you” cuối thiệp. Bỏ trống thì dùng câu mặc định." });
   }
 
@@ -642,7 +592,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
       label: `“With you”: ${name.toLowerCase()}`,
       kind: "album",
       variant: i === 0 ? "large" : "small",
-      hint: i === 0 ? "Tuỳ chọn: ba ảnh mục “With you”. Bỏ trống thì lấy từ ảnh “Lưới v2” của album." : "",
+      hint: i === 0 ? "Tuỳ chọn: ba ảnh mục “With you”. Bỏ trống thì lấy từ ảnh “Hiện ở Album” của album." : "",
       set: (v) => setCover(i, v),
     };
   }
@@ -663,7 +613,6 @@ export function createContentSection({ db, getUser, getIdToken }) {
       textField(box, { path: `${p}.address`, label: "Địa chỉ" });
       urlField(box, { path: `${p}.mapUrl`, label: "Link bản đồ", hint: "Nút “Chỉ đường” mở link này (Google Maps…)." });
       textField(box, { path: `${p}.note`, label: "Ghi chú", optional: true, hint: "Tuỳ chọn: dòng nhỏ dưới sự kiện." });
-      imageField(box, { path: `${p}.image`, label: "Ảnh sự kiện", kind: "event", variant: "small", hint: "Ảnh trên thẻ sự kiện, khung 7:6." });
       colorsField(box, { path: `${p}.dressCode`, label: "Màu trang phục", hint: "Chấm màu gợi ý trang phục (Dresscode). Mã dạng #rgb hoặc #rrggbb." });
     });
   }
@@ -728,7 +677,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
     const list = el("div", "content-gallery");
     const add = button("+ Thêm ảnh vào album…", "btn-sm btn-rose", () => openPicker({
       title: "Thêm ảnh album",
-      hint: "Ảnh mới thêm vào cuối album, chưa hiện ở lưới cho tới khi đánh dấu “Lưới v1” / “Lưới v2”.",
+      hint: "Ảnh mới thêm vào cuối album; đánh dấu “Hiện ở Album” để ảnh lên băng ảnh mục Album.",
       kind: "album",
       onUploaded: (result) => {
         state.data.gallery.push({ small: result.small, large: result.large });
@@ -736,11 +685,31 @@ export function createContentSection({ db, getUser, getIdToken }) {
         changed();
       },
     }));
-    body.append(el("p", "small text-secondary", "Ảnh album giữ nguyên tỉ lệ gốc; máy tự tạo bản nhỏ (lưới) và bản lớn (khi mở ảnh)."), list, add);
-    // Tick/bỏ tick "Lưới v1" / "Lưới v2" thì dòng đếm đổi theo ngay.
-    list.addEventListener("change", () => {
+    body.append(el("p", "small text-secondary", "Ảnh album giữ nguyên tỉ lệ gốc; máy tự tạo bản nhỏ (băng ảnh Album) và bản lớn (khi mở ảnh)."), list, add);
+    // Ô "Hiện ở Album" tick đúng ảnh băng Album đang hiện (albumShown); tick/bỏ tick ghi featuredV2 qua
+    // setAlbumShown rồi vẽ lại mọi ô và dòng đếm. Bỏ tick ảnh cuối cùng bị chặn, báo lý do ngay dưới dòng đếm.
+    const syncAlbum = (message = "") => {
+      const shown = new Set(albumShown(state.data.gallery));
+      for (const input of list.querySelectorAll("input[data-album-index]")) {
+        input.checked = shown.has(Number(input.dataset.albumIndex));
+      }
       const count = $("content-gallery-count");
       if (count) count.textContent = galleryCountText(state.data.gallery);
+      const note = $("content-gallery-note");
+      if (note) {
+        note.textContent = message;
+        note.hidden = !message;
+      }
+    };
+    list.addEventListener("change", (event) => {
+      const input = event.target.closest("input[data-album-index]");
+      if (!input) return;
+      if (!setAlbumShown(state.data.gallery, Number(input.dataset.albumIndex), input.checked)) {
+        syncAlbum("Băng ảnh Album cần ít nhất 1 ảnh: tick ảnh khác trước rồi mới bỏ ảnh này.");
+        return;
+      }
+      syncAlbum();
+      changed();
     });
     const rerender = () => {
       unregisterPrefix("gallery");
@@ -748,9 +717,15 @@ export function createContentSection({ db, getUser, getIdToken }) {
       if (!Array.isArray(state.data.gallery)) state.data.gallery = [];
       const items = state.data.gallery;
       $("content-gallery-count")?.remove();
+      $("content-gallery-note")?.remove();
       const count = el("div", "small text-secondary mb-2", galleryCountText(items));
       count.id = "content-gallery-count";
-      list.before(count);
+      const note = el("div", "small text-warning-emphasis mb-2");
+      note.id = "content-gallery-note";
+      note.setAttribute("role", "status");
+      note.hidden = true;
+      list.before(count, note);
+      const shown = new Set(albumShown(items));
       items.forEach((item, i) => {
         const p = `gallery.${i}`;
         const box = el("div", "content-gallery-item");
@@ -761,8 +736,16 @@ export function createContentSection({ db, getUser, getIdToken }) {
         img.src = resolveUrl(item.small || item.large || "");
         box.append(img);
         const fieldsBox = el("div", "content-gallery-fields");
-        checkField(fieldsBox, { path: `${p}.featured`, label: "Lưới v1" });
-        checkField(fieldsBox, { path: `${p}.featuredV2`, label: "Lưới v2" });
+        const check = el("div", "form-check");
+        const input = el("input", "form-check-input");
+        input.type = "checkbox";
+        input.id = nextId("c");
+        input.dataset.albumIndex = String(i);
+        input.checked = shown.has(i);
+        const checkLabel = el("label", "form-check-label", "Hiện ở Album");
+        checkLabel.htmlFor = input.id;
+        check.append(input, checkLabel);
+        fieldsBox.append(check);
         textField(fieldsBox, { path: `${p}.caption`, label: "Chú thích", optional: true });
         const details = el("details", "content-gallery-urls");
         details.append(el("summary", "small", "Đường dẫn ảnh"));
@@ -771,7 +754,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
         // Thay ảnh tại chỗ: cùng hộp chọn/cắt/tải như "Thêm ảnh vào album…"; huỷ hay tải lỗi thì ảnh cũ giữ nguyên.
         const replace = button("Thay ảnh…", "btn-sm btn-outline-secondary", () => openPicker({
           title: `Thay ảnh ${i + 1} của album`,
-          hint: "Ảnh mới thay đúng vị trí này; ô Lưới v1 / Lưới v2 và chú thích giữ nguyên.",
+          hint: "Ảnh mới thay đúng vị trí này; ô “Hiện ở Album” và chú thích giữ nguyên.",
           kind: "album",
           onUploaded: (result) => {
             if (!replaceGalleryImage(state.data.gallery, item, result)) return;
@@ -868,7 +851,6 @@ export function createContentSection({ db, getUser, getIdToken }) {
         state.data[key] = ["events", "story", "gallery"].includes(key) ? [] : {};
       }
     }
-    renderVersion(form);
     renderCouple(form);
     renderWedding(form);
     renderEvents(form);
@@ -1126,7 +1108,6 @@ export function createContentSection({ db, getUser, getIdToken }) {
       if (editingSection) followSection(editingSection);
     });
     $("btn-content-preview-close").addEventListener("click", () => $("content-preview-pane").classList.remove("is-open"));
-    $("content-preview-version").addEventListener("change", (event) => preview?.setVersion(event.target.value));
     $("btn-content-history-back").addEventListener("click", () => {
       state.viewingHistory = null;
       $("content-history-view").hidden = true;
@@ -1163,7 +1144,6 @@ export function createContentSection({ db, getUser, getIdToken }) {
       renderForm();
       setStatus();
       preview = preview || createPreview({ container: $("content-preview-frames"), onState: previewState });
-      preview.setVersion($("content-preview-version").value);
       preview.update(state.data, { immediate: true });
       if (loaded.draftBehind) showConflict("load", loaded.published, loaded.draft);
     } catch (error) {

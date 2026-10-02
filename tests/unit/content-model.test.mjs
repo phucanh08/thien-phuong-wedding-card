@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   validateContent, urlProblem, setPath, getPath, toFirestoreValue, splitISO, joinISO, sameContent, isDraftBehind,
-  galleryCountText, replaceGalleryImage,
+  replaceGalleryImage,
 } from "../../docs/admin/content-model.js";
 
 function sample() {
@@ -162,29 +162,6 @@ test("isDraftBehind: nháp có mốc trước published và khác nội dung", (
   assert.equal(isDraftBehind(null, doc("p1", 2000)), false);
   assert.equal(isDraftBehind(doc("a", 1000), null), false);
   assert.equal(isDraftBehind({ data: {}, updatedAt: null }, doc("p1", 2000)), false);
-});
-
-// G1: mỗi ảnh album có ô "Lưới v1" (featured) và "Lưới v2" (featuredV2); dòng đếm nói số ảnh ở từng lưới.
-// Lưới v2 chưa chọn ảnh nào thì thiệp v2 dùng lưới v1; lưới v1 chưa chọn thì cả hai dùng 6 ảnh đầu.
-test("galleryCountText: số ảnh ở lưới v1 và lưới v2", () => {
-  const g = (flags) => Array.from({ length: 10 }, (_, i) => ({ small: `s${i}`, ...(flags[i] || {}) }));
-  const both = galleryCountText(g({ 0: { featured: true }, 1: { featured: true }, 2: { featured: true, featuredV2: true }, 7: { featuredV2: true } }));
-  assert.match(both, /^10 ảnh/);
-  assert.match(both, /Lưới v1: 3 ảnh/);
-  assert.match(both, /Lưới v2: 2 ảnh/);
-  assert.doesNotMatch(both, /theo lưới v1|6 ảnh đầu/);
-
-  // chưa chọn lưới v2 -> v2 theo lưới v1, nói rõ
-  const v1only = galleryCountText(g({ 4: { featured: true }, 5: { featured: true } }));
-  assert.match(v1only, /Lưới v1: 2 ảnh/);
-  assert.match(v1only, /Lưới v2: 2 ảnh \(chưa chọn riêng, theo lưới v1\)/);
-
-  // chưa chọn lưới nào -> 6 ảnh đầu cho cả hai
-  const none = galleryCountText(g({ 3: { featuredV2: false } }));
-  assert.match(none, /Lưới v1: 6 ảnh \(chưa chọn, dùng 6 ảnh đầu\)/);
-  assert.match(none, /Lưới v2: 6 ảnh \(chưa chọn riêng, theo lưới v1\)/);
-
-  assert.match(galleryCountText([]), /^0 ảnh/);
 });
 
 test("ô Lưới v2: tick ghi featuredV2 = true, bỏ tick xoá key; không đụng featured", () => {

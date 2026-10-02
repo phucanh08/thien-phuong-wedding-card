@@ -166,16 +166,40 @@ function canonical(value) {
 }
 export const sameContent = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 
-// Dòng đếm ở mục Album của trình sửa: số ảnh ở lưới v1 (ô "Lưới v1" = featured) và lưới v2 (ô "Lưới v2" =
-// featuredV2, G1). Cùng luật chọn ảnh với thiệp: v1 lấy ảnh featured, không có thì 6 ảnh đầu
-// (v1/index.html); v2 lấy ảnh featuredV2, không có thì như lưới v1 (v2/gallery-grid.js).
-export function galleryCountText(gallery) {
+// Ô "Hiện ở Album" của mỗi ảnh album: chỉ số các ảnh băng ảnh Album của thiệp đang hiện, theo thứ tự
+// album. Cùng luật gridItems của docs/v2/gallery-grid.js: ảnh featuredV2 === true; chưa ảnh nào thì ảnh
+// featured; không có thì 6 ảnh đầu.
+export function albumShown(gallery) {
   const items = (Array.isArray(gallery) ? gallery : []).map((g) => g || {});
-  const v1 = items.filter((g) => g.featured).length;
-  const v2 = items.filter((g) => g.featuredV2 === true).length;
-  const v1Text = v1 ? `${v1} ảnh` : `${Math.min(items.length, 6)} ảnh (chưa chọn, dùng 6 ảnh đầu)`;
-  const v2Text = v2 ? `${v2} ảnh` : `${v1 || Math.min(items.length, 6)} ảnh (chưa chọn riêng, theo lưới v1)`;
-  return `${items.length} ảnh · Lưới v1: ${v1Text} · Lưới v2: ${v2Text}`;
+  const indexes = (pick) => items.flatMap((g, i) => (pick(g) ? [i] : []));
+  const chosen = indexes((g) => g.featuredV2 === true);
+  if (chosen.length) return chosen;
+  const featured = indexes((g) => g.featured);
+  return featured.length ? featured : items.slice(0, 6).map((_, i) => i);
+}
+
+// Tick/bỏ tick ô "Hiện ở Album" của ảnh `index`: ghi featuredV2 = true cho đúng các ảnh được tick (ảnh
+// đang hiện nhờ luật dự phòng cũng được ghi), xoá featuredV2 === true ở ảnh bỏ tick, để băng Album =
+// đúng tập tick. featured không bao giờ bị đổi. Bỏ tick ảnh cuối cùng -> không đổi gì, trả false
+// (không ảnh nào thì thiệp rơi về luật dự phòng).
+export function setAlbumShown(gallery, index, shown) {
+  const next = new Set(albumShown(gallery));
+  if (shown) next.add(index);
+  else next.delete(index);
+  if (!next.size) return false;
+  gallery.forEach((item, i) => {
+    if (!item || typeof item !== "object") return;
+    if (next.has(i)) item.featuredV2 = true;
+    else if (item.featuredV2 === true) delete item.featuredV2;
+  });
+  return true;
+}
+
+// Dòng đếm ở mục Album của trình sửa.
+export function galleryCountText(gallery) {
+  const count = Array.isArray(gallery) ? gallery.length : 0;
+  if (!count) return "0 ảnh";
+  return `${count} ảnh · Hiện ở Album: ${albumShown(gallery).length} ảnh`;
 }
 
 // Nút "Thay ảnh…" của một ảnh album (G2): ảnh vừa tải lên ({ small, large } từ Worker) thay đúng ảnh

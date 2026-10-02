@@ -69,7 +69,9 @@ và báo "bad CPU type". Dùng `/usr/bin/python3`, `/usr/bin/ruby`, `sips`, `git
      `wishes` (không sửa/xoá); field validate đúng kiểu và độ dài như bảng.
    - Quyền "khách" áp dụng cho **mọi** request (đăng nhập hay không) — người đăng nhập chưa duyệt
      vẫn mở thiệp, gửi RSVP/lời chúc như khách, chỉ không có thêm quyền admin.
-   - `rsvp.name` ≤ 60; `rsvp.events` list ≤ 10 phần tử, mỗi phần tử string;
+   - Timestamp do khách ghi (`rsvp.updatedAt`, `wishes.createdAt`) phải `== request.time`
+     (client dùng `serverTimestamp()`); `wishes.name`/`message` không rỗng.
+   - `rsvp.name` ≤ 60; `rsvp.events` list ≤ 10 phần tử, mỗi phần tử string ≤ 50;
      `accessRequests.displayName` string hoặc null.
    - `mustChangePassword` là chốt chặn **giao diện**, không phải ranh giới bảo mật (rules không
      kiểm được việc đổi mật khẩu); tài khoản `approved` có quyền admin ngay ở tầng rules.

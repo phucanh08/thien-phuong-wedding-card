@@ -281,41 +281,76 @@
         }
     }
 
+    // Gom lễ theo địa điểm để địa chỉ chỉ hiện một lần mỗi nơi: cùng venue + address (so sau khi trim) là một
+    // nhóm. Lễ sắp như Timeline (theo giờ, lễ chưa có giờ cuối ngày); nhóm theo lễ sớm nhất của nó. mapUrl
+    // của nhóm là mapUrl hợp lệ đầu tiên trong nhóm. Không đụng DOM: test bằng node (tests/unit/v2-events-group.test.mjs).
+    function groupEventsByPlace(events) {
+        const groups = new Map();
+        events.map(event => ({ event, p: parseISO(event.startISO) }))
+            .sort((a, b) => sortKey(a.p).localeCompare(sortKey(b.p)))
+            .forEach(({ event, p }) => {
+                const venue = String(event.venue || '').trim();
+                const address = String(event.address || '').trim();
+                const id = `${venue}\n${address}`;
+                if (!groups.has(id)) groups.set(id, { venue, address, mapUrl: '', items: [] });
+                const group = groups.get(id);
+                if (!group.mapUrl) group.mapUrl = safeUrl(event.mapUrl);
+                group.items.push({ event, p });
+            });
+        return [...groups.values()];
+    }
+
+    window.v2Events = { groupByPlace: groupEventsByPlace };
+
+    const PIN_ICON = '<svg class="v2-event__pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>';
+
+    // Mỗi địa điểm một thẻ: tên, địa chỉ, "Chỉ đường" một lần; dưới là từng lễ một dòng
     function renderEvents(events, coupleLabel) {
         const list = document.getElementById('v2-events');
-        list.replaceChildren(...events.map(event => {
-            const p = parseISO(event.startISO);
+        list.replaceChildren(...groupEventsByPlace(events).map(group => {
             const card = el('article', 'v2-event');
             card.dataset.reveal = 'fade-up';
-            card.dataset.eventKey = event.key;
-            card.append(el('p', 'v2-event__side', event.side === 'bride' ? 'Nhà gái' : 'Nhà trai'));
-            card.append(el('h3', 'v2-event__name', event.title));
-            const time = el('p', 'v2-event__time' + (p.time ? '' : ' is-pending'), eventTimeText(p, parseISO(event.endISO)));
-            card.append(time);
-            const dateRow = el('div', 'v2-event__date');
-            dateRow.append(el('p', 'v2-event__date-side', `Tháng ${p.m}`), el('p', 'v2-event__day', pad(p.d)), el('p', 'v2-event__date-side', `Năm ${p.y}`));
-            card.append(dateRow);
-            if (event.lunarText) card.append(el('p', 'v2-event__lunar', `(Tức ngày ${event.lunarText})`));
-            const venue = el('div', 'v2-event__venue');
-            venue.append(el('p', 'v2-event__venue-label', 'Tại:'), el('p', 'v2-event__place', event.venue), el('p', 'v2-event__address', event.address));
-            if (event.note) venue.append(el('p', 'v2-event__note', event.note));
-            const actions = el('div', 'v2-event__actions');
-            const map = el('a', 'v2-event__map', 'Xem bản đồ');
-            map.href = safeUrl(event.mapUrl) || '#';
-            map.target = '_blank';
-            map.rel = 'noopener noreferrer';
-            actions.append(map);
-            const calendarConfig = eventCalendarConfig(event, coupleLabel);
-            if (calendarConfig) {
-                const add = el('button', 'v2-event__calendar', 'Thêm vào lịch');
-                add.type = 'button';
-                add.addEventListener('click', () => addToCalendar(calendarConfig, add));
-                actions.append(add);
+            const venue = el('header', 'v2-event__venue');
+            venue.insertAdjacentHTML('beforeend', PIN_ICON);
+            if (group.venue) venue.append(el('h3', 'v2-event__place', group.venue));
+            if (group.address) venue.append(el('p', 'v2-event__address', group.address));
+            if (group.mapUrl) {
+                const map = el('a', 'v2-event__map', 'Chỉ đường');
+                map.href = group.mapUrl;
+                map.target = '_blank';
+                map.rel = 'noopener noreferrer';
+                const arrow = el('span', 'v2-event__arrow', '→');
+                arrow.setAttribute('aria-hidden', 'true');
+                map.append(arrow);
+                venue.append(map);
             }
-            venue.append(actions);
-            card.append(venue);
+            const items = el('ul', 'v2-event__list');
+            items.append(...group.items.map(({ event, p }) => renderEventItem(event, p, coupleLabel)));
+            card.append(venue, items);
             return card;
         }));
+    }
+
+    // Một lễ: ngày bên trái; tên, giờ + thứ, âm lịch, ghi chú, "Thêm vào lịch" của riêng lễ đó bên phải
+    function renderEventItem(event, p, coupleLabel) {
+        const item = el('li', 'v2-event__item');
+        item.dataset.eventKey = event.key;
+        const date = el('p', 'v2-event__date');
+        date.append(el('span', 'v2-event__day', pad(p.d)), el('span', 'v2-event__month', `Tháng ${p.m}`));
+        const body = el('div', 'v2-event__body');
+        body.append(el('h4', 'v2-event__name', event.title),
+            el('p', 'v2-event__time' + (p.time ? '' : ' is-pending'), eventTimeText(p, parseISO(event.endISO))));
+        if (event.lunarText) body.append(el('p', 'v2-event__lunar', `Tức ngày ${event.lunarText}`));
+        if (event.note) body.append(el('p', 'v2-event__note', event.note));
+        const calendarConfig = eventCalendarConfig(event, coupleLabel);
+        if (calendarConfig) {
+            const add = el('button', 'v2-event__calendar', 'Thêm vào lịch');
+            add.type = 'button';
+            add.addEventListener('click', () => addToCalendar(calendarConfig, add));
+            body.append(add);
+        }
+        item.append(date, body);
+        return item;
     }
 
     // Ô không có nguồn (album rỗng mà thiếu coverImages): giữ khung nền trống, không hiện ảnh vỡ hay chữ

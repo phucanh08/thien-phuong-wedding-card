@@ -472,49 +472,54 @@ html.v2-locked .v2-card { visibility: hidden; }
 .v2-events__amp { flex: 0 0 auto; font-family: var(--f-guest); font-size: 40px; font-style: italic; }
 
 .v2-events__list { display: grid; gap: clamp(18px, 4cqi, 24px); }
+/* Một thẻ cho mỗi địa điểm: đầu thẻ là nơi tổ chức (địa chỉ một lần), dưới là từng lễ một dòng */
 .v2-event {
     position: relative; isolation: isolate;
-    padding: clamp(22px, 5cqi, 30px) clamp(14px, 4cqi, 22px);
+    padding: clamp(22px, 5.5cqi, 30px) clamp(16px, 4.5cqi, 24px) clamp(8px, 2cqi, 12px);
     border: 1px solid rgba(113, 28, 23, .2); border-radius: clamp(14px, 4cqi, 20px);
     background: linear-gradient(145deg, rgba(113, 28, 23, .045), transparent 42%), #fffdfc;
     box-shadow: 0 12px 30px rgba(71, 25, 21, .08);
     --reveal-dur: 800ms;
 }
-.v2-event__name {
-    margin-bottom: 14px; font-family: var(--f-display); font-size: clamp(17px, 4.5cqi, 22px);
-    letter-spacing: .06em; line-height: 1.35; text-transform: uppercase; overflow-wrap: anywhere;
-}
-.v2-event__side {
-    display: inline-block; margin-bottom: 8px; padding: 2px 10px; border-radius: 999px;
-    background: rgba(113, 28, 23, .07); color: #8e473e;
-    font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
-}
-.v2-event__time {
-    margin-bottom: 16px; color: var(--v2-ink); font-family: var(--f-serif);
-    font-size: clamp(16px, 4.6cqi, 23px); font-weight: 500; line-height: 1.6; letter-spacing: .13em; text-transform: uppercase;
-}
-.v2-event__time.is-pending { letter-spacing: .06em; font-style: italic; text-transform: none; }
-.v2-event__date { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
-.v2-event__date-side {
-    padding: 5px 0; border-top: 1px dotted var(--v2-ink); border-bottom: 1px dotted var(--v2-ink);
-    font-size: clamp(13px, 4.2cqi, 21px); line-height: 1.5; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
-}
-.v2-event__day { font-size: clamp(58px, 18cqi, 90px); font-weight: 500; line-height: 1.2; }
-.v2-event__lunar { margin-top: 7px; color: var(--v2-ink); font-size: clamp(13px, 3.6cqi, 18px); line-height: 1.7; font-style: italic; }
-.v2-event__venue { margin-top: 22px; }
-.v2-event__venue-label { margin-bottom: 9px; font-size: 15px; line-height: 1.5; text-transform: uppercase; }
-.v2-event__place { margin-bottom: 9px; font-size: clamp(20px, 5.8cqi, 29px); font-weight: 500; line-height: 1.4; text-transform: uppercase; overflow-wrap: anywhere; }
-.v2-event__address { color: var(--v2-ink); font-size: clamp(11px, 3cqi, 14px); line-height: 1.6; text-transform: uppercase; overflow-wrap: anywhere; }
-.v2-event__note { margin-top: 10px; color: #8e473e; font-size: clamp(12px, 3.2cqi, 15px); font-weight: 500; line-height: 1.5; }
-.v2-event__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 14px; }
+.v2-event__venue { display: flex; flex-direction: column; align-items: center; padding-bottom: clamp(18px, 4.5cqi, 22px); }
+.v2-event__pin { width: 22px; height: 22px; margin-bottom: 8px; fill: currentColor; opacity: .8; }
+.v2-event__place { margin-bottom: 8px; font-size: clamp(20px, 5.8cqi, 29px); font-weight: 500; line-height: 1.4; text-transform: uppercase; overflow-wrap: anywhere; }
+.v2-event__address { color: var(--v2-ink); font-size: clamp(11px, 3cqi, 14px); line-height: 1.6; text-transform: uppercase; text-wrap: balance; overflow-wrap: anywhere; }
 .v2-event__map, .v2-event__calendar {
-    display: inline-flex; align-items: center; justify-content: center; min-height: 38px;
-    padding: 7px 16px; border: 1px solid var(--v2-red); border-radius: 2px;
-    color: var(--v2-red); font-size: 12px; font-weight: 500; line-height: 1.5; text-decoration: none;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border: 1px solid var(--v2-red); border-radius: 2px;
+    color: var(--v2-red); font-weight: 500; line-height: 1.5; text-decoration: none;
     transition: background-color .2s, color .2s;
 }
-.v2-event__calendar { background: none; font-family: inherit; cursor: pointer; }
+.v2-event__map { min-height: 38px; margin-top: 14px; padding: 7px 18px; font-size: 12px; }
+.v2-event__arrow { transition: transform .2s; }
+.v2-event__map:hover .v2-event__arrow { transform: translateX(3px); }
+.v2-event__calendar {
+    min-height: 32px; margin-top: 8px; padding: 4px 12px; border-color: rgba(113, 28, 23, .45);
+    background: none; font-family: inherit; font-size: 11px; cursor: pointer;
+}
 .v2-event__map:hover, .v2-event__calendar:hover { background: var(--v2-red); color: #fff; }
+
+.v2-event__list { margin: 0; padding: 0; list-style: none; }
+.v2-event__item {
+    display: grid; grid-template-columns: clamp(56px, 15cqi, 70px) minmax(0, 1fr); gap: clamp(12px, 3.5cqi, 18px);
+    align-items: start; padding: clamp(16px, 4cqi, 20px) 0; border-top: 1px dotted var(--v2-ink); text-align: left;
+}
+.v2-event__date {
+    display: flex; flex-direction: column; align-items: center; padding: 2px clamp(8px, 2.5cqi, 12px) 4px 0;
+    border-right: 1px solid rgba(113, 28, 23, .2); text-align: center;
+}
+.v2-event__day { font-size: clamp(36px, 10.5cqi, 48px); font-weight: 500; line-height: 1.1; }
+.v2-event__month { margin-top: 4px; color: var(--v2-ink); font-size: clamp(10px, 2.8cqi, 12px); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.v2-event__body { min-width: 0; }
+.v2-event__name {
+    margin-bottom: 2px; font-family: var(--f-display); font-size: clamp(15px, 4.1cqi, 19px);
+    letter-spacing: .05em; line-height: 1.4; text-transform: uppercase; overflow-wrap: anywhere;
+}
+.v2-event__time { color: var(--v2-ink); font-family: var(--f-serif); font-size: clamp(16px, 4.4cqi, 20px); font-weight: 600; line-height: 1.5; letter-spacing: .04em; }
+.v2-event__time.is-pending { font-weight: 500; font-style: italic; }
+.v2-event__lunar { color: var(--v2-muted); font-size: clamp(12px, 3.2cqi, 14px); line-height: 1.6; font-style: italic; }
+.v2-event__note { margin-top: 4px; color: #8e473e; font-size: clamp(12px, 3.2cqi, 14px); font-weight: 500; line-height: 1.5; }
 
 /* ===== 5. Ảnh ghép WITH YOU ===== */
 .v2-cover { padding: clamp(32px, 7vw, 44px) clamp(22px, 5vw, 30px) 10px; background: #fff; }

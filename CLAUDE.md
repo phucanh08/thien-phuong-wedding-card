@@ -114,6 +114,11 @@ và báo "bad CPU type". Dùng `/usr/bin/python3`, `/usr/bin/ruby`, `sips`, `git
    - Quyền Firestore: ai cũng `get` `siteContent/published`; chỉ admin (C5) đọc/ghi
      `siteContent/draft`, ghi `published`, đọc/ghi `siteContentHistory`. Quyền ghi R2 do Worker
      thực thi như trên.
+   - Ràng buộc doc nội dung: `data` là map; `updatedAt`/`publishedAt` kiểu timestamp;
+     `siteContent/published` **không được xoá** (muốn quay lại thì khôi phục từ lịch sử);
+     `siteContentHistory` chỉ thêm mới, không sửa (xoá được bởi admin). Khi xuất bản, bản
+     `published` cũ được chép sang lịch sử với `publishedBy` = **admin đang xuất bản bản mới**
+     (người tạo bản sao lưu), `publishedAt` = `updatedAt` cũ của bản đó.
    - Thiệp: dùng `published.data` nếu đọc được trong thời gian chờ ngắn; không được → dùng
      `docs/wedding-data.js` (dự phòng, vẫn giữ trong repo). Xuất bản đầu tiên = nội dung
      `wedding-data.js` hiện tại.

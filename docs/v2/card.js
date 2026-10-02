@@ -774,6 +774,8 @@
     // AUTO_SCROLL_IDLE ms không thao tác thì cuộn tiếp từ vị trí đang đứng; mỗi lần thao tác đếm lại.
     // Không chạy lại khi đang mở sheet, xem ảnh lớn, gõ vào ô nhập hay đã ở cuối trang: hết các trạng thái
     // đó thì đếm lại từ lúc hết (Human duyệt 2026-10-02).
+    // Khung xem trước của trang quản lý (window.__contentPreview, admin/content-preview.js) không tự cuộn:
+    // khung phải đứng yên ở chỗ người sửa đang xem (Lead 2026-10-03).
     const AUTO_SCROLL_IDLE = 30000;
     const ACTIVITY_EVENTS = ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown', 'scroll'];
     let autoScrollArmed = false;
@@ -781,7 +783,7 @@
     let lastActivity = null; // lần thao tác cuối (hoặc lúc hết trạng thái chặn); null = chưa thao tác
 
     function armAutoScroll() {
-        if (reducedMotion || autoScrollArmed) return;
+        if (reducedMotion || autoScrollArmed || window.__contentPreview) return;
         autoScrollArmed = true;
         ACTIVITY_EVENTS.forEach(type => window.addEventListener(type, onActivity, { capture: true, passive: true }));
         setInterval(resumeAutoScroll, 500);

@@ -6,6 +6,8 @@
 //   - không chạy lại khi đang mở sheet (html.v2-sheet-open), xem ảnh lớn (html.lg-on), ô nhập liệu đang
 //     focus, hay đã ở cuối trang; hết các trạng thái đó thì đếm 30 s từ lúc hết;
 //   - prefers-reduced-motion: không tự cuộn.
+//   - khung xem trước của trang quản lý (window.__contentPreview): không tự cuộn, kể cả sau 30 s (Lead 2026-10-03);
+//     thiệp thật giữ nguyên các luật trên.
 // card.js là script thường nhiều DOM, không nạp được cả file trong node: test cắt đúng đoạn "Tự cuộn"
 // (giữa hai tiêu đề mục) và chạy trong vm với window/document/requestAnimationFrame/đồng hồ giả.
 // Thứ tự gọi armAutoScroll -> startAutoScroll trong openEnvelope được kiểm bằng trình duyệt (xem commit).
@@ -23,7 +25,7 @@ const section = card.slice(card.indexOf("// ===== Tự cuộn"), card.indexOf("/
 // Trang dài 5000 px, khung 800 px (cuối trang: scrollY 4200). Đồng hồ giả bước 16 ms: mỗi bước phát
 // "scroll" nếu vị trí đã đổi (như trình duyệt: ở khung hình sau, trước requestAnimationFrame), chạy khung
 // hình đã xin rồi tới timer đến hạn.
-function load({ reducedMotion = false } = {}) {
+function load({ reducedMotion = false, contentPreview = false } = {}) {
   const listeners = new Map();
   const classes = new Set();
   let now = 0;
@@ -43,6 +45,7 @@ function load({ reducedMotion = false } = {}) {
     addEventListener(type, fn) { listeners.set(type, (listeners.get(type) || new Set()).add(fn)); },
     removeEventListener(type, fn) { listeners.get(type)?.delete(fn); },
   };
+  if (contentPreview) window.__contentPreview = true;
   const document = {
     activeElement: null,
     documentElement: { scrollHeight: 5000, classList: { contains: (name) => classes.has(name) } },
@@ -217,4 +220,19 @@ test("prefers-reduced-motion: không tự cuộn, kể cả sau 30 s", () => {
   const page = opened(1000, { reducedMotion: true });
   page.run(60000);
   assert.equal(page.window.scrollY, 0);
+});
+
+test("khung xem trước của trang quản lý: không tự cuộn sau khi mở phong bì, kể cả sau 30 s", () => {
+  const page = opened(1000, { contentPreview: true });
+  assert.equal(page.window.scrollY, 0);
+  page.run(60000);
+  assert.equal(page.window.scrollY, 0);
+});
+
+test("khung xem trước: người sửa cuộn tới đâu thì đứng yên ở đó (không cuộn tiếp sau 30 s)", () => {
+  const page = opened(1000, { contentPreview: true });
+  page.userScrollTo(2500);
+  page.fire("wheel");
+  page.run(60000);
+  assert.equal(page.window.scrollY, 2500);
 });

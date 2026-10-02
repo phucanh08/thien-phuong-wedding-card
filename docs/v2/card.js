@@ -20,7 +20,7 @@
     const WEEKDAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
     const DEFAULT_INTRO = 'Hôm nay là ngày chúng mình cùng nắm tay nhau bước vào hành trình của yêu thương và sẻ chia.';
     const DEFAULT_THANKS = 'Cảm ơn quý khách đã hiện diện và gửi đến chúng con những lời chúc tốt đẹp.';
-    const AUTO_SCROLL_SPEED = 120; // px/giây, đo từ mẫu
+    const AUTO_SCROLL_SPEED = 80; // px/giây (Human duyệt 2026-10-02; mẫu là 120)
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     history.scrollRestoration = 'manual';
@@ -674,19 +674,28 @@
     audio.addEventListener('pause', showMusicState);
 
     // ===== Tự cuộn chậm sau khi mở phong bì; dừng ngay khi khách tự thao tác =====
+    // Nghe thao tác từ lúc thiệp hiện ra và cuộn được (armAutoScroll), không đợi tới lúc bắt đầu cuộn:
+    // khách chạm/vuốt trong khoảng chờ đó thì tự cuộn không chạy nữa. Đã dừng thì không chạy lại.
+    let autoScrollArmed = false;
     let autoScrollFrame = 0;
+    const STOP_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+
+    function armAutoScroll() {
+        if (reducedMotion) return;
+        autoScrollArmed = true;
+        STOP_EVENTS.forEach(type => window.addEventListener(type, stopAutoScroll, { capture: true, passive: true }));
+    }
 
     function stopAutoScroll() {
-        if (!autoScrollFrame) return;
+        if (!autoScrollArmed) return;
+        autoScrollArmed = false;
         cancelAnimationFrame(autoScrollFrame);
         autoScrollFrame = 0;
         STOP_EVENTS.forEach(type => window.removeEventListener(type, stopAutoScroll, true));
     }
-    const STOP_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
 
     function startAutoScroll() {
-        if (reducedMotion) return;
-        STOP_EVENTS.forEach(type => window.addEventListener(type, stopAutoScroll, { capture: true, passive: true }));
+        if (!autoScrollArmed || autoScrollFrame) return;
         let last = performance.now();
         let y = window.scrollY;
         const step = now => {
@@ -721,6 +730,7 @@
         window.scrollTo(0, 0);
         card.classList.add('is-entering');
         document.documentElement.classList.remove('v2-locked');
+        armAutoScroll();
         flyPhotoToBanner();
         envelope.classList.add('is-handoff');
         requestAnimationFrame(() => requestAnimationFrame(() => {

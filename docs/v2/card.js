@@ -112,7 +112,7 @@
         setText('monogram', initial(groom.shortName) + initial(bride.shortName));
 
         // Lời dẫn, đếm ngược, lịch
-        setText('intro', typeof wedding.introText === 'string' ? wedding.introText : DEFAULT_INTRO);
+        renderIntro(wedding);
         setImg(document.querySelector('[data-wd-img="invitation"]'), wedding.invitationImage || mainImage, 'Ảnh cưới');
         setText('calendar-month', `Tháng ${MONTH_NAMES[date.m - 1]} ${date.y}`);
         renderCalendar(date, D.events);
@@ -132,6 +132,24 @@
             audio.src = musicSrc;
             if (D.music.title) audio.title = D.music.title;
         }
+    }
+
+    // Có câu dẫn thì dùng câu dẫn; để trống thì hiện lời ngỏ (mỗi phần tử một dòng, như v1);
+    // không có cả hai thì như cũ: thiếu key -> câu mặc định, chuỗi rỗng -> ẩn.
+    function renderIntro(wedding) {
+        const intro = typeof wedding.introText === 'string' ? wedding.introText : null;
+        const lines = Array.isArray(wedding.invitationText) ? wedding.invitationText.map(line => typeof line === 'string' ? line : '') : [];
+        if ((intro && intro.trim()) || !lines.some(line => line.trim())) {
+            setText('intro', intro == null ? DEFAULT_INTRO : intro);
+            return;
+        }
+        document.querySelectorAll('[data-wd="intro"]').forEach(node => {
+            node.replaceChildren();
+            lines.forEach((line, i) => {
+                if (i) node.append(el('br'));
+                node.append(document.createTextNode(line));
+            });
+        });
     }
 
     function initial(name) {

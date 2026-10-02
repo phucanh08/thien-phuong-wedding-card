@@ -26,7 +26,8 @@ export const PREVIEW_ANCHORS = {
   },
 };
 
-// Chạy trong iframe trước mọi script của thiệp. Nhạc tắt tiếng để sửa không bị phát nhạc.
+// Chạy trong iframe trước mọi script của thiệp. Nhạc tắt tiếng để sửa không bị phát nhạc; form
+// RSVP/lời chúc bị chặn gửi (thiệp trong bản xem trước vẫn nối Firestore thật để đọc lời chúc).
 function bootstrapScript(firestoreDoc) {
   const json = JSON.stringify(firestoreDoc)
     .replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
@@ -43,6 +44,24 @@ function bootstrapScript(firestoreDoc) {
   };
   var play = HTMLMediaElement.prototype.play;
   HTMLMediaElement.prototype.play = function () { this.muted = true; return play.apply(this, arguments); };
+  // Thiệp gửi RSVP/lời chúc bằng sự kiện submit của form: chặn ở window (capture, chạy trước
+  // listener của form) để bấm thử trong bản xem trước không ghi thật lên Firestore.
+  window.addEventListener("submit", function (event) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    var note = document.getElementById("content-preview-blocked");
+    if (!note) {
+      note = document.createElement("div");
+      note.id = "content-preview-blocked";
+      note.setAttribute("role", "status");
+      note.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:2147483647;padding:10px 12px;"
+        + "border-radius:10px;background:#2b2226;color:#fff;font:14px/1.4 system-ui,sans-serif;text-align:center";
+      document.body.appendChild(note);
+    }
+    note.textContent = "Bản xem trước: không gửi xác nhận tham dự / lời chúc.";
+    clearTimeout(note._timer);
+    note._timer = setTimeout(function () { note.remove(); }, 4000);
+  }, true);
 })();</script>`;
 }
 

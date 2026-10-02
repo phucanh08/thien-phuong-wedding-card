@@ -1102,9 +1102,11 @@
                 document.getElementById('video').remove();
             }
 
-            // Album: mỗi item một ô; bấm ô hoặc "Tất cả hình ảnh" mở LightGallery
-            document.getElementById('photoGalleryContainer').innerHTML = D.gallery.map((item, i) => `
-                <div class="col-6 gallery-item section-sub-title mb-2 btn-see-more-gallery" data-aos="${i % 2 ? 'fade-left' : 'fade-right'}" data-index="${i}">
+            // Album: lưới chỉ hiện ảnh `featured` (không có thì 6 ảnh đầu); data-index giữ chỉ số trong
+            // toàn bộ D.gallery nên bấm ô hoặc "Tất cả hình ảnh" đều mở đúng ảnh trong LightGallery
+            const featured = D.gallery.map((item, i) => ({ item, i })).filter(g => g.item.featured);
+            document.getElementById('photoGalleryContainer').innerHTML = (featured.length ? featured : D.gallery.slice(0, 6).map((item, i) => ({ item, i }))).map(({ item, i }, n) => `
+                <div class="col-6 gallery-item section-sub-title mb-2 btn-see-more-gallery" data-aos="${n % 2 ? 'fade-left' : 'fade-right'}" data-index="${i}">
                     <img loading="lazy" src="${esc(item.small)}" alt="pic${i + 1}">
                 </div>`).join('');
 

@@ -855,13 +855,20 @@ export function createContentSection({ db, getUser, getIdToken }) {
       await run();
     } catch (error) {
       console.warn("Nội dung thiệp: thao tác thất bại", error);
-      showAlert(error && error.code === "permission-denied"
-        ? "Không có quyền thực hiện thao tác này."
-        : `Có lỗi xảy ra: ${error.message || error}`);
+      showAlert(error && error.code === "content/stale-published"
+        ? error.message
+        : error && error.code === "permission-denied"
+          ? "Không có quyền thực hiện thao tác này."
+          : `Có lỗi xảy ra: ${error.message || error}`);
     } finally {
       state.busy = false;
       for (const b of document.querySelectorAll("[data-content-action]")) b.disabled = false;
     }
+  }
+
+  // updatedAt của bản published lúc trình sửa đọc lần gần nhất (null = chưa xuất bản).
+  function publishedStamp() {
+    return state.meta.published ? state.meta.published.updatedAt ?? null : null;
   }
 
   async function refreshMeta() {
@@ -887,7 +894,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
     if (blockIfInvalid("xuất bản")) return;
     if (!confirm("Xuất bản nội dung này? Khách mở thiệp sẽ thấy ngay. Bản đang xuất bản được giữ trong Lịch sử.")) return;
     return withBusy(async () => {
-      await store.publish(state.data);
+      await store.publish(state.data, publishedStamp());
       state.dirty = false;
       state.origin = "draft";
       await refreshMeta();
@@ -941,7 +948,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
     if (!confirm(`Khôi phục và xuất bản lại bản ${formatTime(item.publishedAt)}? Bản khách đang thấy được giữ trong Lịch sử.`)) return;
     dialog.close();
     return withBusy(async () => {
-      state.data = await store.restore(item.id);
+      state.data = await store.restore(item.id, publishedStamp());
       state.dirty = false;
       state.origin = "draft";
       state.viewingHistory = null;

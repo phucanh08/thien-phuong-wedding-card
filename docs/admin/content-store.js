@@ -8,6 +8,20 @@ import {
 
 const HISTORY_LIMIT = 30;
 
+// Bản published đã đổi kể từ lúc trình sửa đọc (admin khác vừa xuất bản).
+export class StalePublishError extends Error {
+  constructor() {
+    super("Bản xuất bản vừa bị người khác thay đổi, tải lại trang để xem bản mới rồi xuất bản lại.");
+    this.code = "content/stale-published";
+  }
+}
+
+// updatedAt của published: Timestamp, hoặc null khi chưa xuất bản lần nào.
+function sameStamp(a, b) {
+  if (!a || !b) return !a && !b;
+  return typeof a.isEqual === "function" ? a.isEqual(b) : a.toMillis() === b.toMillis();
+}
+
 // Firestore không nhận undefined; data luôn là bản sao thuần JSON, không dính object đang sửa.
 function plain(data) {
   return JSON.parse(JSON.stringify(data));
@@ -41,24 +55,35 @@ export function createContentStore({ db, getUser }) {
     await setDoc(draftRef, { data: plain(data), updatedAt: serverTimestamp(), updatedBy: email() });
   }
 
-  // Một transaction: bản published cũ (nếu có) sang lịch sử, ghi published mới, nháp = bản vừa
-  // xuất bản (để mở lại trình sửa thấy đúng nội dung khách đang thấy).
-  async function publish(data) {
+  // Một transaction: bản published cũ (nếu có) chép nguyên sang lịch sử, ghi published mới, nháp =
+  // bản vừa xuất bản (để mở lại trình sửa thấy đúng nội dung khách đang thấy). Lần đầu chưa có
+  // published thì không ghi lịch sử (rules từ chối cả batch).
+  // expectedUpdatedAt: updatedAt của published lúc trình sửa đọc (null = chưa có). Khác bản trên máy
+  // chủ -> StalePublishError, không ghi gì, thay vì đè lên bản admin khác vừa xuất bản.
+  async function publish(data, expectedUpdatedAt) {
     const by = email();
     const content = plain(data);
-    await runTransaction(db, async (tx) => {
-      const current = await tx.get(publishedRef);
-      if (current.exists()) {
-        const old = current.data();
-        tx.set(doc(historyCol), {
-          data: old.data,
-          publishedAt: old.updatedAt ?? serverTimestamp(),
-          publishedBy: by,
-        });
+    try {
+      await runTransaction(db, async (tx) => {
+        const current = await tx.get(publishedRef);
+        const old = current.exists() ? current.data() : null;
+        if (!sameStamp(old ? old.updatedAt : null, expectedUpdatedAt)) throw new StalePublishError();
+        if (old) {
+          tx.set(doc(historyCol), { data: old.data, publishedAt: old.updatedAt, publishedBy: by });
+        }
+        tx.set(publishedRef, { data: content, updatedAt: serverTimestamp(), updatedBy: by });
+        tx.set(draftRef, { data: content, updatedAt: serverTimestamp(), updatedBy: by });
+      });
+    } catch (error) {
+      // Rules kiểm bản lịch sử khớp published hiện tại: published đổi giữa chừng -> permission-denied.
+      if (error && error.code === "permission-denied") {
+        const now = await getDoc(publishedRef).catch(() => null);
+        if (now && !sameStamp(now.exists() ? now.data().updatedAt : null, expectedUpdatedAt)) {
+          throw new StalePublishError();
+        }
       }
-      tx.set(publishedRef, { data: content, updatedAt: serverTimestamp(), updatedBy: by });
-      tx.set(draftRef, { data: content, updatedAt: serverTimestamp(), updatedBy: by });
-    });
+      throw error;
+    }
   }
 
   async function listHistory() {
@@ -67,11 +92,11 @@ export function createContentStore({ db, getUser }) {
   }
 
   // Khôi phục = xuất bản lại data của bản lịch sử; bản lịch sử giữ nguyên.
-  async function restore(historyId) {
+  async function restore(historyId, expectedUpdatedAt) {
     const snap = await getDoc(doc(historyCol, historyId));
     if (!snap.exists()) throw new Error("Không tìm thấy bản lịch sử.");
     const data = snap.data().data;
-    await publish(data);
+    await publish(data, expectedUpdatedAt);
     return plain(data);
   }
 

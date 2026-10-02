@@ -38,7 +38,7 @@ const SECTIONS = {
   },
   gallery: {
     title: "Album ảnh",
-    where: "v1: lưới ảnh mục Album (chỉ ảnh đánh dấu “Hiện ở lưới”; không đánh dấu ảnh nào thì lấy 6 ảnh đầu) và trình xem “Tất cả hình ảnh”. v2: băng chuyền Album; ảnh “Hiện ở lưới” cũng làm ảnh “With you” khi chưa đặt ảnh riêng.",
+    where: "v1: lưới ảnh mục Album (ảnh đánh dấu “Lưới v1”; không đánh dấu ảnh nào thì lấy 6 ảnh đầu). v2: băng chuyền Album (ảnh đánh dấu “Lưới v2”; không đánh dấu ảnh nào thì dùng Lưới v1), cũng là ảnh “With you” khi chưa đặt ảnh riêng. “Tất cả hình ảnh” / xem ảnh lớn mở cả album ở cả hai bản.",
   },
   donate: {
     title: "Hộp mừng cưới",
@@ -640,7 +640,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
       label: `“With you”: ${name.toLowerCase()}`,
       kind: "album",
       variant: i === 0 ? "large" : "small",
-      hint: i === 0 ? "Tuỳ chọn: ba ảnh mục “With you”. Bỏ trống thì lấy từ ảnh “Hiện ở lưới” của album." : "",
+      hint: i === 0 ? "Tuỳ chọn: ba ảnh mục “With you”. Bỏ trống thì lấy từ ảnh “Lưới v2” của album." : "",
       set: (v) => setCover(i, v),
     };
   }
@@ -726,7 +726,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
     const list = el("div", "content-gallery");
     const add = button("+ Thêm ảnh vào album…", "btn-sm btn-rose", () => openPicker({
       title: "Thêm ảnh album",
-      hint: "Ảnh mới thêm vào cuối album, chưa hiện ở lưới cho tới khi đánh dấu “Hiện ở lưới”.",
+      hint: "Ảnh mới thêm vào cuối album, chưa hiện ở lưới cho tới khi đánh dấu “Lưới v1” / “Lưới v2”.",
       kind: "album",
       onUploaded: (result) => {
         state.data.gallery.push({ small: result.small, large: result.large });
@@ -735,6 +735,11 @@ export function createContentSection({ db, getUser, getIdToken }) {
       },
     }));
     body.append(el("p", "small text-secondary", "Ảnh album giữ nguyên tỉ lệ gốc; máy tự tạo bản nhỏ (lưới) và bản lớn (khi mở ảnh)."), list, add);
+    // Tick/bỏ tick "Lưới v1" / "Lưới v2" thì dòng đếm đổi theo ngay.
+    list.addEventListener("change", () => {
+      const count = $("content-gallery-count");
+      if (count) count.textContent = galleryCountText(state.data.gallery);
+    });
     const rerender = () => {
       unregisterPrefix("gallery");
       list.replaceChildren();
@@ -754,7 +759,8 @@ export function createContentSection({ db, getUser, getIdToken }) {
         img.src = resolveUrl(item.small || item.large || "");
         box.append(img);
         const fieldsBox = el("div", "content-gallery-fields");
-        checkField(fieldsBox, { path: `${p}.featured`, label: "Hiện ở lưới" });
+        checkField(fieldsBox, { path: `${p}.featured`, label: "Lưới v1" });
+        checkField(fieldsBox, { path: `${p}.featuredV2`, label: "Lưới v2" });
         textField(fieldsBox, { path: `${p}.caption`, label: "Chú thích", optional: true });
         const details = el("details", "content-gallery-urls");
         details.append(el("summary", "small", "Đường dẫn ảnh"));

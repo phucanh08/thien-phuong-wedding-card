@@ -3,14 +3,18 @@
 (function (root) {
     'use strict';
 
-    // Ảnh ở lưới: [{ item, index }], index là chỉ số trong album (lightbox mở toàn album theo chỉ số này).
-    // Ảnh `featured`; không ảnh nào featured thì 6 ảnh đầu.
+    // Ảnh ở lưới v2: [{ item, index }], index là chỉ số trong album (lightbox mở toàn album theo chỉ số
+    // này). Ảnh `featuredV2` (ô "Lưới v2" của trang quản lý); chưa ảnh nào có thì như lưới v1 (v1/index.html):
+    // ảnh `featured`, không có thì 6 ảnh đầu. Dữ liệu cũ không có featuredV2 vì vậy hiện như trước.
     function gridItems(gallery) {
-        const featured = gallery.map((item, index) => ({ item, index })).filter(x => x.item.featured);
-        return featured.length ? featured : gallery.slice(0, 6).map((item, index) => ({ item, index }));
+        const entries = gallery.map((item, index) => ({ item, index }));
+        const chosenV2 = entries.filter(x => x.item.featuredV2 === true);
+        if (chosenV2.length) return chosenV2;
+        const featured = entries.filter(x => x.item.featured);
+        return featured.length ? featured : entries.slice(0, 6);
     }
 
-    // Ba ảnh bìa [lớn, nhỏ trái, nhỏ phải]: wedding.coverImages[i] nếu có, không thì lấy từ lưới
+    // Ba ảnh bìa [lớn, nhỏ trái, nhỏ phải]: wedding.coverImages[i] nếu có, không thì lấy từ lưới v2
     // (ảnh lớn dùng bản large, hai ảnh nhỏ dùng bản small; lưới ít ảnh thì lặp ảnh đầu).
     function coverSources(gallery, coverImages) {
         const custom = Array.isArray(coverImages) ? coverImages.filter(u => typeof u === 'string' && u) : [];

@@ -166,10 +166,16 @@ function canonical(value) {
 }
 export const sameContent = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 
-// Dòng đếm ở mục Album của trình sửa.
+// Dòng đếm ở mục Album của trình sửa: số ảnh ở lưới v1 (ô "Lưới v1" = featured) và lưới v2 (ô "Lưới v2" =
+// featuredV2, G1). Cùng luật chọn ảnh với thiệp: v1 lấy ảnh featured, không có thì 6 ảnh đầu
+// (v1/index.html); v2 lấy ảnh featuredV2, không có thì như lưới v1 (v2/gallery-grid.js).
 export function galleryCountText(gallery) {
-  const items = Array.isArray(gallery) ? gallery : [];
-  return `${items.length} ảnh · ${items.filter((g) => g && g.featured).length} ảnh hiện ở lưới`;
+  const items = (Array.isArray(gallery) ? gallery : []).map((g) => g || {});
+  const v1 = items.filter((g) => g.featured).length;
+  const v2 = items.filter((g) => g.featuredV2 === true).length;
+  const v1Text = v1 ? `${v1} ảnh` : `${Math.min(items.length, 6)} ảnh (chưa chọn, dùng 6 ảnh đầu)`;
+  const v2Text = v2 ? `${v2} ảnh` : `${v1 || Math.min(items.length, 6)} ảnh (chưa chọn riêng, theo lưới v1)`;
+  return `${items.length} ảnh · Lưới v1: ${v1Text} · Lưới v2: ${v2Text}`;
 }
 
 // draft/published: { data, updatedAt (Timestamp: có toMillis), updatedBy } hoặc null.

@@ -119,7 +119,9 @@ window.WEDDING_DATA = {
     ],
 
     // caption (tuỳ chọn): chú thích khi mở ảnh lớn; bỏ trống thì dùng câu trích dẫn mặc định
-    // featured: true -> hiện ở lưới trên trang (không item nào featured thì lấy 6 item đầu); "Tất cả hình ảnh" và lightbox mở toàn bộ.
+    // featured: true -> hiện ở lưới v1 (không item nào featured thì lấy 6 item đầu); "Tất cả hình ảnh" và lightbox mở toàn bộ.
+    // featuredV2: true (tuỳ chọn) -> hiện ở băng ảnh Album của v2 và làm ảnh bìa "With you" khi thiếu
+    // wedding.coverImages; không item nào featuredV2 thì v2 dùng lưới v1.
     gallery: [
         { small: "assets/images/photos/photo-01-small.webp", large: "assets/images/photos/photo-01-large.webp", featured: true },
         { small: "assets/images/photos/photo-02-small.webp", large: "assets/images/photos/photo-02-large.webp" },

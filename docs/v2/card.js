@@ -602,7 +602,7 @@
 
     // ===== LightGallery (vendor dùng lại, không sửa) =====
     // actualSize: false -> không có nút kính lúp trên thanh công cụ (Human 2026-10-03): phóng ảnh bằng chụm hai
-    // ngón (pinch-zoom.js). Chạm đúp vẫn do lg-zoom xử lý như cũ.
+    // ngón (pinch-zoom.js); chạm đúp trên điện thoại cũng không phóng (pinch-zoom.js vá lg-zoom).
     let galleryData = [];
     let mainGallery = null;
     let lgReady = null;

@@ -8,6 +8,9 @@
 // - Trong LightGallery: hai ngón trên ảnh đang xem cũng dùng cách trên thay cho zoom của lg-zoom
 //   (zoom đó không theo ngón tay và giữ ảnh phóng sau khi buông, làm vuốt chuyển ảnh thành kéo ảnh).
 //   Một ngón (vuốt chuyển ảnh, vuốt dọc đóng, chạm) vẫn để LightGallery xử lý.
+// - Chạm đúp ảnh trong LightGallery không còn phóng ảnh (Human 2026-10-03): lg-zoom phóng rồi giữ ảnh phóng, vuốt
+//   thành kéo ảnh. Thư viện không có tuỳ chọn tắt riêng chạm đúp và không sửa được file vendor, nên bỏ qua lời gọi
+//   setActualSize do sự kiện chạm (touchstart) sinh ra. Chuột (dblclick) và phím giữ nguyên.
 // - Trang đã bị phóng (lọt qua no-page-zoom.js khi chụm lúc trang đang cuộn): không nhận cử chỉ, để hai ngón
 //   thu trang về cỡ cũ như thường; bản sao position:fixed cũng chỉ đặt đúng chỗ khi trang ở scale 1.
 // Ảnh nhận cử chỉ: chọn theo class của v1, hoặc ảnh có thuộc tính data-pinch-zoom (v2). File gắn vào ảnh có sẵn
@@ -212,8 +215,24 @@
         });
     }
 
+    // lg-zoom gọi setActualSize(index, event) khi chạm đúp (event: touchstart) hoặc dblclick chuột; nút kính lúp
+    // đã bỏ nên không còn lời gọi nào khác. Gọi qua prototype lúc cần nên vá sau khi plugin nạp vẫn có tác dụng.
+    function noDoubleTapZoom() {
+        var Zoom = window.lgZoom;
+        if (!Zoom || !Zoom.prototype || Zoom.prototype.pzNoDoubleTap) return;
+        var original = Zoom.prototype.setActualSize;
+        Zoom.prototype.setActualSize = function (index, event) {
+            if (event && event.type === 'touchstart') return;
+            return original.apply(this, arguments);
+        };
+        Zoom.prototype.pzNoDoubleTap = true;
+    }
+
     // LightGallery dựng .lg-container lúc mở lần đầu (ảnh QR thì dựng mới mỗi lần)
-    document.addEventListener('lgAfterOpen', bindLightbox, true);
+    document.addEventListener('lgAfterOpen', function (e) {
+        noDoubleTapZoom();
+        bindLightbox(e);
+    }, true);
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
     else bind();

@@ -154,3 +154,24 @@ test("LightGallery không có nút kính lúp (actualSize) và nút phóng/thu",
     assert.doesNotMatch(config, /showZoomInOutIcons: true/);
   }
 });
+
+// Chạm đúp ảnh trong LightGallery không phóng (Human 2026-10-03). lg-zoom gọi setActualSize(index, event) với event là
+// touchstart khi chạm đúp, là dblclick khi bấm đúp chuột; pinch-zoom.js bỏ qua loại đầu, giữ loại sau.
+test("LightGallery: chạm đúp (touchstart) không phóng ảnh, bấm đúp chuột vẫn phóng", () => {
+  const b = browser();
+  const calls = [];
+  function Zoom() {}
+  Zoom.prototype.setActualSize = function (index, event) { calls.push([this, index, event && event.type]); return "zoomed"; };
+  b.window.lgZoom = Zoom;
+  run(b, "pinch-zoom.js");
+  dispatch(b, "lgAfterOpen");
+  const zoom = new Zoom();
+  assert.equal(zoom.setActualSize(0, { type: "touchstart" }), undefined);
+  assert.equal(calls.length, 0);
+  assert.equal(zoom.setActualSize(0, { type: "dblclick" }), "zoomed");
+  assert.deepEqual(calls.map((c) => c.slice(1)), [[0, "dblclick"]]);
+  // Mở lightbox lần nữa không bọc thêm một lớp
+  dispatch(b, "lgAfterOpen");
+  assert.equal(zoom.setActualSize(1), "zoomed");
+  assert.equal(calls.length, 2);
+});

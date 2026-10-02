@@ -15,5 +15,4 @@ export const FIREBASE_CONFIG = {
 export const EMULATOR_HOSTS = ['localhost', '127.0.0.1'];
 export const AUTH_EMULATOR_PORT = 9199;
 export const FIRESTORE_EMULATOR_PORT = 8282;
-export const STORAGE_EMULATOR_PORT = 9198;
 export const USE_EMULATOR = EMULATOR_HOSTS.includes(location.hostname);

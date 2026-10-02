@@ -45,7 +45,7 @@ body {
   box-shadow: 0 0 0 .2rem rgba(180, 80, 106, .2);
 }
 
-/* Màn đăng nhập / chờ duyệt / đổi mật khẩu */
+/* Màn đăng nhập / chưa có quyền / đổi mật khẩu */
 .auth-wrap {
   min-height: 100vh;
   min-height: 100dvh;
@@ -60,28 +60,6 @@ body {
   max-width: 400px;
   border: 0;
   border-radius: 1rem;
-}
-
-.btn-google {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: .6rem;
-  padding: .6rem;
-}
-
-.divider {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-  color: #8a7f83;
-  font-size: .875rem;
-}
-.divider::before,
-.divider::after {
-  content: "";
-  flex: 1;
-  border-top: 1px solid #e5dde0;
 }
 
 .status-icon { font-size: 2.5rem; line-height: 1; }

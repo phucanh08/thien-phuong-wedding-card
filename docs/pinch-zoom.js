@@ -8,9 +8,11 @@
 // - Trong LightGallery: hai ngón trên ảnh đang xem cũng dùng cách trên thay cho zoom của lg-zoom
 //   (zoom đó không theo ngón tay và giữ ảnh phóng sau khi buông, làm vuốt chuyển ảnh thành kéo ảnh).
 //   Một ngón (vuốt chuyển ảnh, vuốt dọc đóng, chạm) vẫn để LightGallery xử lý.
+// Ảnh nhận cử chỉ: chọn theo class của v1, hoặc ảnh có thuộc tính data-pinch-zoom (v2). File gắn vào ảnh có sẵn
+// lúc nó chạy, nên trang nạp file này sau khi đã vẽ ảnh.
 (function () {
     var TARGETS = '.main_image img, .member-image img, #photoGalleryContainer img, '
-        + '.timeline-card .img-holder img, .event-item .image-wrap';
+        + '.timeline-card .img-holder img, .event-item .image-wrap, [data-pinch-zoom]';
     var MAX_SCALE = 4;
     var RETURN_MS = 300;
 

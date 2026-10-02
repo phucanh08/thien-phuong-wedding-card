@@ -1,33 +1,47 @@
-/* Nút X đóng LightGallery trên điện thoại (lightbox-close.js) */
+/* Nút X đóng LightGallery trên điện thoại (lightbox-close.js).
+   Vùng bấm 40px trong suốt; phần nhìn thấy là vòng tròn 30px viền mảnh vẽ bằng ::before (Human 2026-10-03). */
 .lb-close-x {
     position: absolute;
     top: calc(env(safe-area-inset-top, 0px) + 6px);
     right: calc(env(safe-area-inset-right, 0px) + 6px);
     z-index: 1090;
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #fff;
-    background: rgba(0, 0, 0, .55);
-    border: 1.5px solid rgba(255, 255, 255, .85);
-    border-radius: 50%;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, .5);
+    background: none;
+    border: 0;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
 }
-.lb-close-x:active {
-    background: rgba(0, 0, 0, .8);
+.lb-close-x::before {
+    content: "";
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    width: 30px;
+    height: 30px;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, .45);
+    border: 1px solid rgba(255, 255, 255, .6);
+    border-radius: 50%;
+}
+.lb-close-x svg {
+    position: relative;
+}
+.lb-close-x:active::before {
+    background: rgba(0, 0, 0, .75);
 }
 .lg-closing .lb-close-x {
     opacity: 0;
     transition: opacity .15s;
 }
-/* Chừa chỗ để nút X không đè nút phát/zoom của thanh công cụ */
+/* Chừa chỗ để nút X không đè nút của thanh công cụ */
 .lb-has-close-x .lg-toolbar {
     box-sizing: border-box;
-    padding-right: calc(env(safe-area-inset-right, 0px) + 50px);
+    padding-right: calc(env(safe-area-inset-right, 0px) + 46px);
 }

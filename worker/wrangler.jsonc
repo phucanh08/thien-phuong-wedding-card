@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Worker phục vụ ảnh/nhạc thiệp trên R2 theo hợp đồng C6 (CLAUDE.md).
+  // Chưa deploy: bucket chưa tạo, R2 trên tài khoản Human chưa bật.
+  "name": "thien-phuong-media",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "thien-phuong-wedding-media"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    }
+  }
+}

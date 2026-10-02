@@ -38,6 +38,7 @@
     <script src="wedding-data.js"></script>
     <link rel="modulepreload" href="content-loader.js">
     <link rel="modulepreload" href="firebase-shared.js">
+    <link rel="modulepreload" href="firebase-config.js">
     <script>
         // Biến toàn cục dùng chung cho phần RSVP/lời chúc (guest nhận diện qua ?code=<guestId>)
         const currentUrl = window.location.href;
@@ -58,15 +59,20 @@
             set('meta[name="description"]', D.meta.description);
             set('meta[name="keywords"]', 'Wedding,' + groom.fullName + ',' + bride.fullName);
             set('meta[name="application-name"]', D.meta.title);
-            set('link[rel="icon"]', D.meta.favicon);
+            set('link[rel="icon"]', D.meta.favicon || 'data:,'); // không có icon: không để trình duyệt xin /favicon.ico
             set('meta[property="og:site_name"]', siteName);
             set('meta[property="og:title"]', siteName);
             set('meta[property="og:description"]', D.meta.description);
-            set('meta[property="og:image"]', new URL(D.meta.previewImage, document.baseURI).href);
+            const previewImage = D.meta.previewImage ? new URL(D.meta.previewImage, document.baseURI).href : '';
+            set('meta[property="og:image"]', previewImage);
             set('meta[name="twitter:title"]', siteName);
             set('meta[name="twitter:description"]', D.meta.description);
-            set('meta[name="twitter:image"]', new URL(D.meta.previewImage, document.baseURI).href);
+            set('meta[name="twitter:image"]', previewImage);
         }
+
+        // Chưa có icon lúc trang load xong thì trình duyệt xin /favicon.ico (404): đặt tạm icon của
+        // wedding-data.js, applyMeta() thay bằng icon của nội dung được dùng
+        if (window.WEDDING_DATA) document.querySelector('link[rel="icon"]').setAttribute('href', window.WEDDING_DATA.meta.favicon);
     </script>
 
     <style>
@@ -1211,9 +1217,11 @@
                 if (start.time && end.time) { atcb.startTime = start.time; atcb.endTime = end.time; }
                 const dateText = `${pad(start.d)}/${pad(start.mo)}/${start.y}`;
                 const dress = (e.dressCode || []).map(c => `<div class="dresscode-colors-item" style="background:${esc(c)}"></div>`).join('');
+                // Trong url("...") của CSS, entity HTML đã được giải mã: mã hoá các ký tự thoát được chuỗi CSS
+                const imageStyle = e.image ? ` style="background-image:url(&quot;${esc(e.image.replace(/["'\\\n\r\f]/g, encodeURIComponent))}&quot;)"` : '';
                 return `
                 <div data-aos="${i % 2 ? 'flip-left' : 'flip-right'}" class="event-item event-${esc(e.side)} d-flex flex-row p-0 border-0 rounded overflow-hidden" data-event-key="${esc(e.key)}">
-                    <div class="image-wrap position-relative" style="background-image:url('${esc(e.image)}')">
+                    <div class="image-wrap position-relative"${imageStyle}>
                         ${dress ? `<div class="dresscode-colors-wrap w-100"><div class="dresscode-colors-event"><span class="tooltip-dresscode">Dress Code</span>${dress}</div></div>` : ''}
                     </div>
                     <div class="info-wrap p-3">
@@ -1227,7 +1235,7 @@
                             <div class="atcb" style="display:none">${esc(JSON.stringify(atcb))}</div>
                         </div>
                         <a href="#" data-index="${i + 1}" class="section-sub-title btn btn-sm btn-secondary calendar-button-custom-click">Thêm vào lịch</a>
-                        <a href="${esc(e.mapUrl)}" target="_blank" rel="noopener" class="section-sub-title btn btn-sm btn-secondary">Xem bản đồ</a>
+                        ${e.mapUrl ? `<a href="${esc(e.mapUrl)}" target="_blank" rel="noopener" class="section-sub-title btn btn-sm btn-secondary">Xem bản đồ</a>` : ''}
                     </div>
                 </div>`;
             }).join('');
@@ -1247,7 +1255,8 @@
 
             // Nhạc nền
             const audioEl = document.getElementById('myAudio');
-            audioEl.src = D.music.src;
+            // src rỗng sẽ thành URL của trang -> chỉ gán khi có nhạc
+            if (D.music.src) audioEl.src = D.music.src;
             if (D.music.title) audioEl.title = D.music.title;
 
             // Ảnh cho LightGallery
@@ -1374,73 +1383,111 @@
         setupSnowFlakes();
     </script>
 
-    <script type="module">
+    <script>
         // ===== Khởi động =====
-        // Nội dung (bản xuất bản hoặc dự phòng, không trộn) về rồi mới vẽ thiệp, vẽ xong mới nạp các
+        // Nội dung (bản xuất bản hoặc dự phòng, không trộn) về rồi mới vẽ thiệp, vẽ xong mới chạy các
         // thư viện đọc DOM lúc khởi tạo, theo thứ tự cũ. Màn chờ che trang tới khi vẽ xong và trang đã load.
-        import { loadWeddingContent } from './content-loader.js';
+        // Khởi động là script thường: content-loader.js (module) tải lỗi, trình duyệt không chạy module,
+        // hay quá BOOT_DEADLINE_MS chưa có nội dung -> vẽ bằng wedding-data.js đã nạp ở <head>.
+        window.bootWeddingCard = (function () {
+            const BOOT_DEADLINE_MS = 4000; // > thời gian chờ bản xuất bản của content-loader.js (2.5s)
 
-        // Script thường: async=false giữ đúng thứ tự chạy dù tải song song
-        const LIBS = [
-            'common/calendar.js',
-            'templates/template135/js/libs.js',
-            'templates/template135/lightgallery/lightgallery.umd.js',
-            'templates/template135/lightgallery/plugins/lg-zoom.umd.js',
-            'templates/template135/lightgallery/plugins/lg-thumbnail.umd.js',
-            'templates/template135/lightgallery/plugins/lg-autoplay.umd.js',
-            'templates/template135/lightgallery/plugins/lg-fullscreen.umd.js',
-            'templates/template135/js/lightgallery-init.js',
-            'pinch-zoom.js',
-            'lightbox-close.js',
-            'templates/template135/js/script.js',
-            'common/emoji-picker/js/insertTextAtCursor.js'
-        ];
+            // Script thường: async=false giữ đúng thứ tự chạy dù tải song song
+            const LIBS = [
+                'common/calendar.js',
+                'templates/template135/js/libs.js',
+                'templates/template135/lightgallery/lightgallery.umd.js',
+                'templates/template135/lightgallery/plugins/lg-zoom.umd.js',
+                'templates/template135/lightgallery/plugins/lg-thumbnail.umd.js',
+                'templates/template135/lightgallery/plugins/lg-autoplay.umd.js',
+                'templates/template135/lightgallery/plugins/lg-fullscreen.umd.js',
+                'templates/template135/js/lightgallery-init.js',
+                'pinch-zoom.js',
+                'lightbox-close.js',
+                'templates/template135/js/script.js',
+                'common/emoji-picker/js/insertTextAtCursor.js'
+            ];
 
-        // Thư viện lỗi tải không được giữ màn chờ mãi -> lỗi cũng coi như xong
-        function loadScript(src, type) {
-            return new Promise(resolve => {
-                const script = document.createElement('script');
-                if (type) script.type = type;
-                else script.async = false;
-                script.src = src;
-                script.onload = script.onerror = resolve;
-                document.body.appendChild(script);
+            // Tải sẵn thư viện trong lúc chờ nội dung (chỉ tải, chưa chạy)
+            LIBS.forEach(src => {
+                const link = document.createElement('link');
+                link.rel = 'preload';
+                link.as = 'script';
+                link.href = src;
+                document.head.appendChild(link);
             });
-        }
 
-        const { data, source } = await loadWeddingContent();
-        window.WEDDING_DATA = data;
-        document.documentElement.dataset.contentSource = source;
-        try {
-            applyMeta();
-            renderRsvpEventChoices();
-            renderWeddingData();
-        } catch (error) {
-            console.error('Không vẽ được thiệp:', error);
-        }
-
-        // lightgallery-init.js, script.js (và Bootstrap) khởi tạo trong window 'load'. Giờ chúng chạy
-        // sau khi vẽ, có thể sau khi trang đã load xong -> listener 'load' đăng ký muộn được gọi ngay.
-        window.addEventListener = function (type, listener, options) {
-            if (type !== 'load' || document.readyState !== 'complete' || !listener) {
-                return EventTarget.prototype.addEventListener.call(this, type, listener, options);
+            // Thư viện lỗi tải không được giữ màn chờ mãi -> lỗi cũng coi như xong
+            function loadScript(src, type) {
+                return new Promise(resolve => {
+                    const script = document.createElement('script');
+                    if (type) script.type = type;
+                    else script.async = false;
+                    script.src = src;
+                    script.onload = script.onerror = resolve;
+                    document.body.appendChild(script);
+                });
             }
-            setTimeout(() => {
-                const event = new Event('load');
-                if (typeof listener === 'function') listener.call(window, event);
-                else listener.handleEvent(event);
-            });
-        };
-        const libsReady = Promise.all(LIBS.map(src => loadScript(src)));
-        loadScript('firebase-config.js', 'module');
-        await libsReady;
-        delete window.addEventListener;
-        // init.js dùng jQuery của libs.js ngay khi chạy
-        loadScript('common/emoji-picker/js/init.js', 'module');
 
-        if (document.readyState !== 'complete') await new Promise(resolve => window.addEventListener('load', resolve, { once: true }));
-        document.querySelector('#preloader').style.display = 'none';
-        document.querySelector('.wrapper').style.display = '';
+            let booted = false;
+            function boot(data, source) {
+                if (booted) return;
+                booted = true;
+                clearTimeout(deadline);
+                window.WEDDING_DATA = data;
+                document.documentElement.dataset.contentSource = source;
+                try {
+                    applyMeta();
+                    renderRsvpEventChoices();
+                    renderWeddingData();
+                } catch (error) {
+                    console.error('Không vẽ được thiệp:', error);
+                }
+
+                // lightgallery-init.js, script.js (và Bootstrap) khởi tạo trong window 'load'. Giờ chúng chạy
+                // sau khi vẽ, có thể sau khi trang đã load xong -> listener 'load' đăng ký muộn được gọi ngay.
+                window.addEventListener = function (type, listener, options) {
+                    if (type !== 'load' || document.readyState !== 'complete' || !listener) {
+                        return EventTarget.prototype.addEventListener.call(this, type, listener, options);
+                    }
+                    setTimeout(() => {
+                        const event = new Event('load');
+                        if (typeof listener === 'function') listener.call(window, event);
+                        else listener.handleEvent(event);
+                    });
+                };
+                const libsReady = Promise.all(LIBS.map(src => loadScript(src)));
+                loadScript('firebase-config.js', 'module');
+                libsReady.then(() => {
+                    delete window.addEventListener;
+                    // init.js dùng jQuery của libs.js ngay khi chạy
+                    loadScript('common/emoji-picker/js/init.js', 'module');
+                    if (document.readyState !== 'complete') {
+                        return new Promise(resolve => window.addEventListener('load', resolve, { once: true }));
+                    }
+                }).then(() => {
+                    document.querySelector('#preloader').style.display = 'none';
+                    document.querySelector('.wrapper').style.display = '';
+                });
+            }
+
+            function bootFallback(reason) {
+                if (booted) return;
+                console.warn('Không nạp được nội dung thiệp, dùng nội dung dự phòng:', reason);
+                boot(window.WEDDING_DATA, 'fallback');
+            }
+
+            const deadline = setTimeout(() => bootFallback('quá ' + BOOT_DEADLINE_MS + 'ms'), BOOT_DEADLINE_MS);
+            if (!('noModule' in HTMLScriptElement.prototype)) bootFallback('trình duyệt không chạy module');
+            return { boot, bootFallback };
+        })();
+    </script>
+    <script type="module">
+        // import động thay vì import tĩnh: content-loader.js/firebase-shared.js tải lỗi thì vào catch ngay
+        import('./content-loader.js')
+            .then(({ loadWeddingContent }) => loadWeddingContent())
+            .then(({ data, source }) => bootWeddingCard.boot(data, source))
+            .catch(error => bootWeddingCard.bootFallback(error));
     </script>
 </body>
 </html>

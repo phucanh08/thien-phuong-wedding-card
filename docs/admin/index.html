@@ -109,6 +109,7 @@
         <a href="#thong-ke" data-section="thong-ke">Thống kê</a>
         <a href="#noi-dung" data-section="noi-dung">Nội dung thiệp</a>
         <a href="#quan-tri" data-section="quan-tri">Quản trị viên</a>
+        <a href="#huong-dan" data-section="huong-dan">Hướng dẫn sử dụng</a>
       </nav>
 
       <main class="app-main">
@@ -380,6 +381,95 @@
           </div>
           <div class="alert alert-danger py-2 small" id="requests-error" role="alert" hidden></div>
           <div id="requests-list" class="request-list"></div>
+        </section>
+
+        <section data-panel="huong-dan" class="guide" hidden>
+          <h2 class="h4 mb-2">Hướng dẫn sử dụng</h2>
+          <p class="text-secondary mb-3">
+            Trang này dùng để mời khách, xem ai sẽ đến và sửa nội dung thiệp. Chọn mục ở menu
+            (trên điện thoại hoặc màn hình nhỏ, menu là thanh cuộn ngang phía trên). Muốn xem lại hướng dẫn này, bấm
+            <strong>Hướng dẫn sử dụng</strong> ở cuối menu.
+          </p>
+
+          <div class="card mb-3" id="guide-khach-moi">
+            <div class="card-body">
+              <h3 class="h6">1. Khách mời</h3>
+              <ul class="guide-list">
+                <li>Bấm <strong>+ Thêm khách</strong>, điền <strong>Tên</strong> (bắt buộc), <strong>Xưng hô</strong> (ví dụ Anh, Cô chú), <strong>Bên</strong> (nhà trai hoặc nhà gái), <strong>Nhóm</strong>, <strong>Số người</strong>, rồi tick các sự kiện ở ô <strong>Mời dự</strong> (chọn ít nhất một). Bấm <strong>Lưu</strong>.</li>
+                <li>Mỗi khách tự có một <strong>mã</strong> riêng. Bấm <strong>Copy link</strong> để chép link thiệp riêng của khách, dạng <code>…/?code=mã</code>, rồi dán vào Zalo hoặc Messenger để gửi. Khách mở link sẽ thấy lời chào đúng tên và chỉ các lễ được mời.</li>
+                <li><strong>Sửa</strong> để đổi thông tin hoặc lễ được mời. <strong>Xoá</strong> khách thì link riêng chỉ còn lời chào chung; xác nhận khách đã gửi vẫn được giữ lại.</li>
+                <li>Ô tìm và hai ô lọc (bên, nhóm) giúp tìm nhanh trong danh sách dài.</li>
+                <li>Có sẵn danh sách trong Excel? Bấm <strong>Nhập từ file</strong>, tải file mẫu, điền mỗi khách một dòng rồi chọn file để xem trước. Cột <strong>Tên</strong> và <strong>Bên</strong> là bắt buộc, để trống cột <strong>Sự kiện</strong> là mời tất cả. Dòng bị lỗi sẽ không được nhập.</li>
+                <li>Số điện thoại và ghi chú của khách không hiện trên thiệp, nhưng ai có link riêng của khách đó đều đọc được. Đừng ghi điều không muốn khách thấy.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card mb-3" id="guide-xac-nhan">
+            <div class="card-body">
+              <h3 class="h6">2. Xác nhận &amp; lời chúc</h3>
+              <ul class="guide-list">
+                <li><strong>Xác nhận tham dự</strong> cho biết ai đã trả lời: <em>Đi</em>, <em>Không đi</em> hay <em>Chưa chắc</em>, đi mấy người và dự những lễ nào. Mới nhất nằm trên cùng. Dùng ô tìm hoặc ô lọc để chỉ xem một nhóm (ví dụ chỉ người đi).</li>
+                <li><em>Có mã</em> là khách mở bằng link riêng. <em>Link chung</em> là khách mở thiệp không có mã và tự gõ tên. Nếu hai xác nhận link chung trùng tên, chỉ bản mới nhất được tính.</li>
+                <li>Bấm <strong>Xoá</strong> ở một xác nhận nếu gửi nhầm. Khách có mã sẽ trở về “chưa trả lời” và có thể gửi lại.</li>
+                <li><strong>Sổ lời chúc</strong> liệt kê lời chúc khách gửi trên thiệp, mới nhất trên cùng. Bấm <strong>Xoá</strong> nếu muốn gỡ một lời chúc; lời chúc đó sẽ biến mất khỏi thiệp.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card mb-3" id="guide-thong-ke">
+            <div class="card-body">
+              <h3 class="h6">3. Thống kê</h3>
+              <ul class="guide-list">
+                <li>Số liệu theo từng lễ và theo từng ngày: khách mời, xác nhận đi (số người), chưa chắc, không đi và chưa trả lời. Số tự cập nhật khi có khách trả lời.</li>
+                <li><strong>Mâm (đã xác nhận)</strong> = số người đã xác nhận đi lễ đó chia 10, làm tròn lên. <strong>Mâm dự kiến</strong> tính thêm số người dự kiến của khách được mời mà chưa trả lời. “Chưa chắc” không tính vào mâm.</li>
+                <li>Ghi chú cách tính nằm ở cuối trang Thống kê.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card mb-3" id="guide-noi-dung">
+            <div class="card-body">
+              <h3 class="h6">4. Nội dung thiệp</h3>
+              <ol class="guide-list">
+                <li>Mở một nhóm (ví dụ <strong>Cô dâu &amp; chú rể</strong>, <strong>Sự kiện</strong>, <strong>Album ảnh</strong>) và sửa các ô. Ô có dấu * là bắt buộc.</li>
+                <li>Xem thiệp thay đổi ngay ở khung <strong>xem trước</strong>: trên màn hình rộng khung nằm bên phải; trên điện thoại hoặc màn hình nhỏ, bấm nút <strong>Xem trước</strong> để mở khung. Bấm <strong>Xem phần này</strong> trong mỗi nhóm để khung nhảy tới đúng phần.</li>
+                <li><strong>Lưu nháp</strong>: lưu lại để làm tiếp sau, <em>khách chưa thấy</em> gì.</li>
+                <li><strong>Xuất bản</strong>: khách mở thiệp sẽ thấy <em>ngay</em> nội dung mới. Trang hỏi lại một lần trước khi xuất bản. Còn ô bắt buộc bị thiếu thì chưa lưu hoặc xuất bản được.</li>
+                <li><strong>Lịch sử</strong>: mỗi lần xuất bản, bản cũ được giữ lại. Bấm <strong>Xem trước</strong> để xem, <strong>Khôi phục</strong> để xuất bản lại bản đó.</li>
+              </ol>
+              <ul class="guide-list">
+                <li><strong>Ảnh</strong>: bấm <strong>Tải ảnh mới…</strong>, chọn ảnh, kéo hoặc thu phóng khung cắt, rồi bấm <strong>Dùng ảnh này</strong>. Ảnh tự được thu nhỏ trước khi tải lên.</li>
+                <li><strong>Album ảnh</strong>: <strong>+ Thêm ảnh vào album…</strong> để thêm ảnh, <strong>Thay ảnh…</strong> để đổi một ảnh tại chỗ. Tick ô <strong>Hiện ở Album</strong> cho những ảnh muốn hiện ở băng ảnh mục Album trên thiệp (luôn cần ít nhất một ảnh). “Tất cả hình ảnh” trên thiệp vẫn mở cả album.</li>
+                <li><strong>Nhạc nền</strong>: chọn file MP3 hoặc M4A (tối đa 10 MB).</li>
+                <li>Không thêm hoặc xoá sự kiện ở đây vì danh sách khách đang gắn với các sự kiện này.</li>
+                <li>Nếu một người khác vừa xuất bản trong lúc bạn đang sửa, trang sẽ báo và hỏi bạn muốn giữ bản nào, không tự ghi đè.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card mb-3" id="guide-quan-tri">
+            <div class="card-body">
+              <h3 class="h6">5. Quản trị viên</h3>
+              <ul class="guide-list">
+                <li>Để cho người khác cùng quản lý: nhập <strong>Tên đăng nhập</strong> (3–30 ký tự gồm a–z, 0–9, dấu . _ -), <strong>Tên hiển thị</strong> và <strong>Mật khẩu tạm</strong> (ít nhất 8 ký tự, hoặc bấm <strong>Tạo ngẫu nhiên</strong>), rồi bấm <strong>Tạo tài khoản</strong>.</li>
+                <li>Gửi tên đăng nhập và mật khẩu tạm cho người đó. Họ phải đặt mật khẩu mới ở lần đăng nhập đầu tiên.</li>
+                <li>Tài khoản mới có đầy đủ quyền như bạn (khách mời, nội dung thiệp, tạo tài khoản…), nên chỉ tạo cho người tin cậy.</li>
+                <li>Danh sách bên dưới cho thấy mọi tài khoản. <strong>Thu hồi quyền</strong> để người đó không vào được nữa; <strong>Cấp lại quyền</strong> để cho vào lại. Không có nút cho chính bạn và cho tài khoản admin chính (<code>admin</code>), nên hai tài khoản này không bị thu hồi từ đây.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card mb-3" id="guide-tai-khoan">
+            <div class="card-body">
+              <h3 class="h6">6. Mật khẩu và đăng xuất</h3>
+              <ul class="guide-list">
+                <li>Đăng nhập bằng <strong>tên đăng nhập</strong> và <strong>mật khẩu</strong>.</li>
+                <li>Với mật khẩu tạm do người khác cấp, lần đầu trang sẽ yêu cầu đặt mật khẩu mới (ít nhất 8 ký tự, khác mật khẩu tạm) rồi mới vào được. Hướng dẫn này hiện ra sau bước đó.</li>
+                <li>Dùng xong, bấm <strong>Đăng xuất</strong> ở góc trên bên phải, nhất là trên máy dùng chung.</li>
+              </ul>
+            </div>
+          </div>
         </section>
       </main>
     </div>

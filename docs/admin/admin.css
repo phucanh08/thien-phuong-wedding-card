@@ -301,3 +301,10 @@ body {
   font-size: .9rem;
   box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .2);
 }
+
+/* Mục Hướng dẫn sử dụng */
+.guide { max-width: 760px; }
+.guide .card-body { line-height: 1.55; }
+.guide-list { padding-left: 1.2rem; margin-bottom: 0; }
+.guide-list > li + li { margin-top: .5rem; }
+.guide code { overflow-wrap: anywhere; }

@@ -356,22 +356,27 @@
             return item;
         }));
 
-        // Dresscode theo từng lễ, cùng thứ tự Timeline
-        const rows = sorted.filter(({ event }) => Array.isArray(event.dressCode) && event.dressCode.length)
-            .map(({ event }) => {
-                const row = el('div', 'v2-dresscode__row');
-                row.dataset.reveal = 'fade-up';
-                const palette = el('ul', 'v2-dresscode__palette');
-                palette.setAttribute('aria-label', `Màu trang phục: ${event.title}`);
-                event.dressCode.forEach(color => {
-                    const swatch = el('li', 'v2-dresscode__swatch');
-                    if (/^#[0-9a-f]{3,8}$/i.test(color)) swatch.style.setProperty('--swatch', color);
-                    swatch.title = color;
-                    palette.append(swatch);
-                });
-                row.append(el('p', 'v2-dresscode__name', event.title), palette);
-                return row;
+        // Dresscode: các lễ cùng bộ màu -> một hàng không tên lễ (như mẫu), khác nhau -> mỗi lễ một hàng, cùng thứ tự Timeline
+        const rows = window.v2Dresscode.dressRows(sorted.map(({ event }) => event)).map(({ title, colors }) => {
+            const row = el('div', 'v2-dresscode__row');
+            row.dataset.reveal = 'fade-up';
+            const palette = el('ul', 'v2-dresscode__palette');
+            palette.setAttribute('aria-label', title ? `Màu trang phục: ${title}` : 'Màu trang phục');
+            colors.forEach(color => {
+                const swatch = el('li', 'v2-dresscode__swatch');
+                swatch.style.setProperty('--swatch', color);
+                swatch.title = color;
+                palette.append(swatch);
             });
+            if (title) {
+                row.append(el('p', 'v2-dresscode__name', title));
+            } else {
+                palette.classList.add('v2-dresscode__palette--spread');
+                palette.style.setProperty('--cols', Math.min(colors.length, 6));
+            }
+            row.append(palette);
+            return row;
+        });
         document.getElementById('v2-dresscode').replaceChildren(...rows);
         document.getElementById('v2-dresscode-wrap').hidden = !rows.length;
     }

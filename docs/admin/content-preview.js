@@ -13,12 +13,98 @@ const DEBOUNCE_MS = 450;
 const READY_TIMEOUT_MS = 10000;
 const SITE_ROOT = new URL("../", import.meta.url);
 
-// Phần tử neo của từng mục trên thiệp, để "Xem phần này" cuộn tới.
+// Phần tử neo của từng mục trên thiệp ("Xem phần này" khi chưa bấm ô nào trong mục). "" = đầu thiệp.
 export const PREVIEW_ANCHORS = {
-  meta: "", couple: ".v2-couple", wedding: ".v2-lovestory", invitation: ".v2-family",
-  cover: ".v2-cover", thanks: ".v2-thanks", events: ".v2-events", story: "#v2-story-section",
+  meta: "", couple: ".v2-couple", wedding: ".v2-lovestory", events: ".v2-events", story: "#v2-story-section",
   gallery: ".v2-album", donate: ".v2-gift", music: "",
 };
+
+// Mục con trên thiệp hiện giá trị của từng ô (path của ô trong trình sửa), để khung xem trước tới đúng chỗ
+// khi bấm ô / "Xem phần này". Một ô hiện ở nhiều chỗ thì liệt kê theo thứ tự ưu tiên: chỗ nào đang nằm trong
+// khung nhìn thì ở lại chỗ đó, không thì tới chỗ đầu tiên. Ô không hiện trong thân thiệp (tab trình duyệt,
+// nhạc, hạn xác nhận chỉ có trong sheet) -> null: khung đứng yên.
+const eventItem = (key) => `.v2-event__item[data-event-key=${JSON.stringify(String(key))}]`;
+const FIELD_TARGETS = [
+  [/^couple\.\w+\.(?:shortName|fullName)$/, () => [".v2-couple__names", ".v2-events__couple"]],
+  [/^couple\./, () => [".v2-family__list"]],
+  [/^wedding\.dateISO$/, () => [".v2-countdown", ".v2-calendar", ".v2-couple__date"]],
+  [/^wedding\.rsvpDeadline$/, () => null],
+  [/^wedding\.(?:mainImage|envelopeImage)$/, () => [".v2-couple__banner"]],
+  [/^wedding\.invitationImage$/, () => [".v2-lovestory__portrait"]],
+  [/^wedding\.coverImages(?:\.|$)/, () => [".v2-cover"]],
+  [/^wedding\.(?:introText|invitationText)(?:\.|$)/, () => [".v2-lovestory__intro"]],
+  [/^wedding\.thanksText$/, () => [".v2-thanks"]],
+  [/^events\.\d+\.dressCode(?:\.|$)/, () => ["#v2-dresscode-wrap"]],
+  [/^events\.(\d+)\.(?:venue|address|mapUrl)$/, (key, field) => [`.v2-event:has(${key})`,
+    ...(field === "venue" ? [".v2-timeline__list"] : [])]],
+  [/^events\.(\d+)\.(?:title|startISO|endISO)$/, (key) => [key, ".v2-timeline__list"]],
+  [/^events\.(\d+)\./, (key) => [key]],
+  [/^story\.(\d+)\./, (i) => [`#v2-story > .v2-story__item:nth-child(${i + 1})`]],
+  [/^gallery(?:\.|$)/, () => [".v2-album"]],
+  [/^donate\.(groom|bride)\./, (n) => [`#v2-gift > .v2-gift__card:nth-child(${n})`]],
+  [/^(?:meta|music)\./, () => null],
+];
+
+// Bộ chọn (theo thứ tự ưu tiên) của chỗ cần xem cho ô `path` thuộc mục `section`; không có path hay ô lạ ->
+// neo của mục. [] = đầu thiệp; null = đứng yên.
+export function previewTargets(section, path, data) {
+  const anchor = PREVIEW_ANCHORS[section] ? [PREVIEW_ANCHORS[section]] : [];
+  if (!path) return anchor;
+  for (const [pattern, targets] of FIELD_TARGETS) {
+    const m = pattern.exec(path);
+    if (!m) continue;
+    let arg = m[1];
+    if (path.startsWith("events.")) arg = eventItem(data?.events?.[Number(m[1])]?.key ?? "");
+    else if (path.startsWith("story.")) arg = Number(m[1]);
+    else if (path.startsWith("donate.")) arg = m[1] === "bride" && data?.donate?.groom ? 2 : 1;
+    const field = path.split(".")[2];
+    return targets(arg, field);
+  }
+  return anchor;
+}
+
+// Chỗ cần xem trong khung: chỗ đang nằm trong khung nhìn, không thì chỗ đầu tiên có trên thiệp.
+function pickTarget(win, selectors) {
+  const found = [];
+  for (const selector of selectors) {
+    let node = null;
+    try {
+      node = win.document.querySelector(selector);
+    } catch {
+      // trình duyệt chưa hiểu :has()
+    }
+    if (node && node.getClientRects().length) found.push(node);
+  }
+  const height = win.innerHeight;
+  return found.find((node) => {
+    const r = node.getBoundingClientRect();
+    return r.bottom > 0 && r.top < height;
+  }) || found[0] || null;
+}
+
+// Vị trí đặt chỗ cần xem: vừa khung thì ở giữa, cao hơn khung thì sát mép trên.
+function targetTop(win, node) {
+  const r = node.getBoundingClientRect();
+  const height = win.innerHeight;
+  return Math.max(0, Math.round(win.scrollY + r.top - (r.height < height * 0.8 ? (height - r.height) / 2 : 0)));
+}
+
+// Chỗ đang xem: mục đầu tiên (section của thiệp) còn trong khung nhìn và khoảng cách từ mục đó tới đỉnh
+// khung. Vẽ lại đổi chiều cao các mục phía trên thì vẫn đặt lại đúng mục đang xem.
+const CARD_SECTIONS = "#v2-card > section";
+function viewPosition(win) {
+  const sections = [...win.document.querySelectorAll(CARD_SECTIONS)];
+  const index = sections.findIndex((s) => s.getClientRects().length && s.getBoundingClientRect().bottom > 0);
+  return { y: win.scrollY, index, offset: index < 0 ? 0 : sections[index].getBoundingClientRect().top };
+}
+
+function restorePosition(win, position) {
+  const section = position.index < 0 ? null : win.document.querySelectorAll(CARD_SECTIONS)[position.index];
+  const y = section && section.getClientRects().length
+    ? win.scrollY + section.getBoundingClientRect().top - position.offset
+    : position.y;
+  if (y) win.scrollTo(0, Math.max(0, Math.round(y)));
+}
 
 // Chạy trong iframe trước mọi script của thiệp. Nhạc tắt tiếng để sửa không bị phát nhạc; form
 // RSVP/lời chúc bị chặn gửi (thiệp trong bản xem trước vẫn nối Firestore thật để đọc lời chúc).
@@ -65,6 +151,7 @@ export function createPreview({ container, onState }) {
   let timer = null;
   let generation = 0;
   let current = null;
+  let wanted = null; // { section, path } người sửa yêu cầu tới, khung chưa tới được
 
   async function pageHtml() {
     if (html === null) {
@@ -117,19 +204,26 @@ export function createPreview({ container, onState }) {
       return;
     }
     const previous = current;
-    let scrollY = 0;
-    try {
-      scrollY = previous ? previous.contentWindow.scrollY : 0;
-    } catch {
-      scrollY = 0;
-    }
     const win = frame.contentWindow;
-    if (previous && previousOpened(previous)) await openEnvelope(win, gen);
+    // Người sửa vừa yêu cầu tới một chỗ mà khung cũ chưa kịp tới: khung mới tới chỗ đó thay khung cũ.
+    if (previous && (previousOpened(previous) || wanted)) await openEnvelope(win, () => gen === generation);
     if (gen !== generation) {
       frame.remove();
       return;
     }
-    if (scrollY) win.scrollTo(0, scrollY);
+    // Lấy chỗ đang xem sau cùng (người sửa có thể đã cuộn khung cũ trong lúc khung mới dựng).
+    let position = null;
+    try {
+      position = previous ? viewPosition(previous.contentWindow) : null;
+    } catch {
+      position = null;
+    }
+    if (position) restorePosition(win, position);
+    if (wanted) {
+      const spec = wanted;
+      wanted = null;
+      scrollFrame(win, spec, "auto");
+    }
     frame.classList.remove("is-pending");
     previous?.remove();
     current = frame;
@@ -146,16 +240,27 @@ export function createPreview({ container, onState }) {
   }
 
   // Thiệp mở bằng phong bì: đã mở ở bản trước thì mở luôn ở bản mới (chạm giả nút mở).
-  async function openEnvelope(win, gen) {
+  // alive(): còn cần mở không (khung bị thay thì thôi chờ).
+  async function openEnvelope(win, alive) {
     const button = win.document.getElementById("v2-envelope-open");
     if (!button) return;
     button.click();
     const end = Date.now() + 6000;
-    while (Date.now() < end && gen === generation
+    while (Date.now() < end && alive()
       && win.document.documentElement.classList.contains("v2-locked")) {
       await new Promise((r) => setTimeout(r, 100));
     }
     await new Promise((r) => setTimeout(r, 1200));
+  }
+
+  // Mục con chưa có trên thiệp (vd. mốc chuyện tình chưa vẽ) thì tới neo của cả mục.
+  function scrollFrame(win, { section, path }, behavior) {
+    const selectors = previewTargets(section, path, data);
+    if (!selectors) return;
+    const anchor = PREVIEW_ANCHORS[section];
+    const target = selectors.length ? pickTarget(win, selectors) || (anchor && pickTarget(win, [anchor])) : null;
+    if (selectors.length && !target) return;
+    win.scrollTo({ top: target ? targetTop(win, target) : 0, behavior });
   }
 
   return {
@@ -170,25 +275,29 @@ export function createPreview({ container, onState }) {
     get canScroll() {
       return current !== null && current.getClientRects().length > 0;
     },
-    async scrollTo(section) {
-      if (!current) return;
+    // Đưa khung tới chỗ hiện ô `path` của mục `section` (không có path: neo của mục), rồi đứng yên ở đó.
+    async scrollTo(section, path) {
+      const selectors = previewTargets(section, path, data);
+      if (!current || !selectors) return;
+      const spec = { section, path };
       const frame = current;
-      const selector = PREVIEW_ANCHORS[section];
       const win = frame.contentWindow;
       // Thiệp đang đóng phong bì thì mở trước, nội dung mới cuộn được (mục ở đầu thiệp thì giữ phong bì).
-      if (selector && win.document.documentElement.classList.contains("v2-locked")) {
-        await openEnvelope(win, generation);
-        if (frame !== current) return;
+      wanted = selectors.length ? spec : null;
+      if (wanted && win.document.documentElement.classList.contains("v2-locked")) {
+        await openEnvelope(win, () => frame === current);
+        // Khung đã được thay (khung mới tự tới chỗ này) hoặc đã có yêu cầu mới hơn.
+        if (frame !== current || wanted !== spec) return;
       }
-      const target = selector ? win.document.querySelector(selector) : null;
-      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-      else win.scrollTo({ top: 0, behavior: "smooth" });
+      wanted = null;
+      scrollFrame(win, spec, "smooth");
     },
     // Dừng vẽ (rời trang/đăng xuất).
     clear() {
       clearTimeout(timer);
       generation++;
       current = null;
+      wanted = null;
       container.replaceChildren();
     },
   };

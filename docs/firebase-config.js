@@ -82,7 +82,10 @@ function greetGuest(guest) {
         choices.forEach(input => {
             const isInvited = invited.includes(input.value);
             input.checked = isInvited;
-            input.closest('.rsvp-event-choice').style.display = isInvited ? '' : 'none';
+            // Nhãn có class d-flex (display:flex !important) nên ẩn phải kèm !important mới thắng.
+            const choice = input.closest('.rsvp-event-choice');
+            if (isInvited) choice.style.removeProperty('display');
+            else choice.style.setProperty('display', 'none', 'important');
         });
     }
     validateSendConfirmBtn();

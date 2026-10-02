@@ -1,7 +1,7 @@
 // Mục "Nội dung thiệp": sửa toàn bộ window.WEDDING_DATA (C6), xem trước sống, lưu nháp, xuất bản,
 // lịch sử và khôi phục. Dữ liệu người dùng chỉ đưa vào DOM bằng textContent / value.
 // Sửa trực tiếp trên một bản sao của data nên field không có ô sửa (field lạ, video...) giữ nguyên.
-import { createContentStore } from "./content-store.js";
+import { createContentStore, UNKNOWN_PUBLISHED } from "./content-store.js";
 import { createPreview } from "./content-preview.js";
 import { validateContent, getPath, setPath, splitISO, joinISO } from "./content-model.js";
 import { createImagePicker } from "./image-picker.js";
@@ -51,7 +51,7 @@ const SECTIONS = {
 
 const ORIGIN_LABEL = {
   draft: "Đang sửa bản nháp đã lưu",
-  published: "Chưa có nháp: đang sửa từ bản khách đang thấy",
+  published: "Đang sửa từ bản khách đang thấy",
   file: "Lần đầu: nội dung lấy từ wedding-data.js, chưa lưu lên máy chủ",
 };
 
@@ -851,7 +851,8 @@ export function createContentSection({ db, getUser, getIdToken }) {
     return true;
   }
 
-  async function withBusy(run) {
+  // action: "save" | "publish" | "restore" | "open", để báo đúng thao tác nào bị chặn khi bản xuất bản đã đổi.
+  async function withBusy(run, action) {
     if (state.busy) return;
     state.busy = true;
     for (const b of document.querySelectorAll("[data-content-action]")) b.disabled = true;
@@ -859,15 +860,83 @@ export function createContentSection({ db, getUser, getIdToken }) {
       await run();
     } catch (error) {
       console.warn("Nội dung thiệp: thao tác thất bại", error);
-      showAlert(error && error.code === "content/stale-published"
-        ? error.message
-        : error && error.code === "permission-denied"
+      if (error && error.code === "content/stale-published") {
+        // Dòng "Khách đang thấy" phải nói đúng bản mới; không đụng state.basePublished.
+        await refreshMeta();
+        setStatus();
+        showConflict(action, error.published);
+      } else {
+        showAlert(error && error.code === "permission-denied"
           ? "Không có quyền thực hiện thao tác này."
           : `Có lỗi xảy ra: ${error.message || error}`);
+      }
     } finally {
       state.busy = false;
       for (const b of document.querySelectorAll("[data-content-action]")) b.disabled = false;
     }
+  }
+
+  // ---------- Bản xuất bản đã đổi: không ghi đè im lặng, người dùng tự chọn ----------
+  // Nội dung đang sửa dựa trên một bản xuất bản cũ hơn bản khách đang thấy (published). Lưu nháp /
+  // xuất bản / khôi phục đều bị chặn (state.basePublished khác bản trên máy chủ) cho tới khi chọn:
+  //   - Mở bản đang xuất bản: bỏ nội dung đang sửa, sửa tiếp trên bản mới (an toàn, không ghi gì);
+  //   - Giữ bản của tôi: hỏi lại, rồi lấy bản mới làm mốc, lần Lưu nháp / Xuất bản sau sẽ thay nó.
+  const BLOCKED_ACTION = { save: "Chưa lưu nháp", publish: "Chưa xuất bản", restore: "Chưa khôi phục" };
+
+  function describePublished(published) {
+    return published
+      ? `${shortEmail(published.updatedBy) || "?"} xuất bản lúc ${formatTime(published.updatedAt) || "?"}`
+      : "bản xuất bản không đọc được";
+  }
+
+  function showConflict(action, published, draft) {
+    const text = action === "load"
+      ? `Bản nháp này (lưu ${formatTime(draft?.updatedAt)} bởi ${shortEmail(draft?.updatedBy)}) cũ hơn bản khách đang thấy (${describePublished(published)}): nháp được soạn trên một bản xuất bản cũ. Lưu hay xuất bản nháp này sẽ xoá các thay đổi trong bản mới.`
+      : `${BLOCKED_ACTION[action] || "Chưa ghi"}: bản khách đang thấy vừa bị người khác thay đổi (${describePublished(published)}). Nội dung bạn đang sửa được soạn trên bản cũ hơn; ghi nó lên sẽ xoá các thay đổi đó.`;
+    showAlert(text, "warning");
+    const box = $("content-alert");
+    const actions = el("div", "content-conflict-actions");
+    actions.append(button("Mở bản đang xuất bản", "btn-sm btn-rose", () => openPublished()));
+    if (published && preview) {
+      actions.append(button("Xem bản đang xuất bản", "btn-sm btn-outline-secondary", () => {
+        state.viewingHistory = published;
+        $("content-history-view-text").textContent = `Đang xem bản khách đang thấy (${describePublished(published)}). Thay đổi trong ô nhập sẽ quay lại bản đang sửa.`;
+        $("content-history-view").hidden = false;
+        $("content-preview-pane").classList.add("is-open");
+        preview.update(published.data, { immediate: true });
+      }));
+    }
+    actions.append(button("Giữ bản của tôi", "btn-sm btn-outline-danger", () => keepMine(published)));
+    box.append(actions, el("div", "content-conflict-hint",
+      "Mở bản đang xuất bản: bỏ nội dung đang có trong trình sửa, sửa tiếp trên bản mới. "
+      + "Giữ bản của tôi: lần Lưu nháp / Xuất bản sau sẽ thay bản kia (khi xuất bản, bản kia vẫn còn trong Lịch sử)."));
+  }
+
+  function openPublished() {
+    if (!confirm("Mở bản khách đang thấy để sửa tiếp? Nội dung đang có trong trình sửa sẽ bị bỏ (nháp trên máy chủ chỉ bị thay khi bạn Lưu nháp hoặc Xuất bản).")) return;
+    hideAlert();
+    return withBusy(async () => {
+      const loaded = await store.load({ fromPublished: true });
+      state.data = loaded.data;
+      state.origin = loaded.origin;
+      state.meta = { draft: loaded.draft, published: loaded.published };
+      state.basePublished = loaded.published ? loaded.published.updatedAt ?? null : null;
+      state.dirty = false;
+      state.viewingHistory = null;
+      $("content-history-view").hidden = true;
+      renderForm();
+      setStatus();
+      preview?.update(state.data, { immediate: true });
+      showAlert(loaded.published
+        ? `Đã mở bản khách đang thấy (${describePublished(loaded.published)}). Nháp trên máy chủ chỉ bị thay khi bạn Lưu nháp hoặc Xuất bản.`
+        : "Chưa có bản xuất bản nào: đang sửa bản nháp trên máy chủ.", "success");
+    }, "open");
+  }
+
+  function keepMine(published) {
+    if (!confirm(`Giữ nội dung bạn đang sửa? Lần Lưu nháp / Xuất bản sau sẽ thay bản ${describePublished(published)}. Khi xuất bản, bản đó vẫn còn trong Lịch sử.`)) return;
+    state.basePublished = published ? published.updatedAt ?? null : null;
+    showAlert(`Đã giữ bản của bạn. Bấm Lưu nháp hoặc Xuất bản để ghi; bản ${describePublished(published)} sẽ bị thay.`, "warning");
   }
 
   // Làm mới dòng trạng thái (nháp/bản khách đang thấy). Không đụng state.basePublished.
@@ -889,13 +958,13 @@ export function createContentSection({ db, getUser, getIdToken }) {
     hideAlert();
     if (blockIfInvalid("lưu nháp")) return;
     return withBusy(async () => {
-      await store.saveDraft(state.data);
+      await store.saveDraft(state.data, state.basePublished);
       state.dirty = false;
       state.origin = "draft";
       const refreshed = await refreshMeta();
       setStatus();
       showAlert(`Đã lưu nháp. Khách chưa thấy thay đổi cho tới khi xuất bản.${refreshed ? "" : REFRESH_NOTE}`, "success");
-    });
+    }, "save");
   }
 
   function publish() {
@@ -909,7 +978,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
       const refreshed = await refreshMeta();
       setStatus();
       showAlert(`Đã xuất bản. Khách mở thiệp sẽ thấy nội dung mới.${refreshed ? "" : REFRESH_NOTE}`, "success");
-    });
+    }, "publish");
   }
 
   async function openHistory() {
@@ -969,7 +1038,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
       setStatus();
       preview.update(state.data, { immediate: true });
       showAlert(`Đã khôi phục bản ${formatTime(item.publishedAt)} và xuất bản lại.${refreshed ? "" : REFRESH_NOTE}`, "success");
-    });
+    }, "restore");
   }
 
   // ---------- Vòng đời mục ----------
@@ -1011,7 +1080,10 @@ export function createContentSection({ db, getUser, getIdToken }) {
       state.data = loaded.data;
       state.origin = loaded.origin;
       state.meta = { draft: loaded.draft, published: loaded.published };
-      state.basePublished = loaded.published ? loaded.published.updatedAt ?? null : null;
+      // Nháp soạn trên bản xuất bản cũ: chưa có mốc nào đúng, mọi lần ghi bị chặn tới khi người dùng chọn.
+      state.basePublished = loaded.draftBehind
+        ? UNKNOWN_PUBLISHED
+        : loaded.published ? loaded.published.updatedAt ?? null : null;
       state.dirty = false;
       state.loaded = true;
       renderForm();
@@ -1019,6 +1091,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
       preview = preview || createPreview({ container: $("content-preview-frames"), onState: previewState });
       preview.setVersion($("content-preview-version").value);
       preview.update(state.data, { immediate: true });
+      if (loaded.draftBehind) showConflict("load", loaded.published, loaded.draft);
     } catch (error) {
       console.warn("Không tải được nội dung thiệp", error);
       $("content-form").replaceChildren();

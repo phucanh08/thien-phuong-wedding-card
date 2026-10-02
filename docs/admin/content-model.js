@@ -148,6 +148,25 @@ export function toFirestoreValue(value) {
   return { stringValue: String(value) };
 }
 
+// So hai bản data bất kể thứ tự key (Firestore trả map theo thứ tự riêng).
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort().map((k) => [k, canonical(value[k])]));
+  }
+  return value;
+}
+export const sameContent = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+
+// draft/published: { data, updatedAt (Timestamp: có toMillis), updatedBy } hoặc null.
+// Xuất bản luôn ghi nháp cùng mốc với published, nên nháp có mốc trước published là nháp soạn trên một
+// bản xuất bản cũ (vd published đổi bằng công cụ khác): lưu/xuất bản nó sẽ xoá thay đổi của bản mới.
+// Nội dung trùng thì vô hại.
+export function isDraftBehind(draft, published) {
+  if (!draft || !published || !draft.updatedAt || !published.updatedAt) return false;
+  return draft.updatedAt.toMillis() < published.updatedAt.toMillis() && !sameContent(draft.data, published.data);
+}
+
 // "2026-10-24T16:30:00+07:00" -> { date: "2026-10-24", time: "16:30", rest: ":00+07:00" } cho ô ngày + ô giờ.
 // rest giữ giây/múi giờ gốc để ghi lại không đổi.
 export function splitISO(value) {

@@ -3,16 +3,20 @@
 //   siteContent/published  { data, updatedAt, updatedBy }   bản khách thấy, không bao giờ xoá
 //   siteContentHistory/*   { data, publishedAt, publishedBy } bản published cũ, chỉ thêm mới
 import {
-  doc, collection, getDoc, getDocs, setDoc, runTransaction, query, orderBy, limit, serverTimestamp,
+  doc, collection, getDoc, getDocs, runTransaction, query, orderBy, limit, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import { sameContent, isDraftBehind } from "./content-model.js";
 
 const HISTORY_LIMIT = 30;
 
-// Bản published đã đổi kể từ lúc trình sửa đọc (admin khác vừa xuất bản).
+// Bản published đã đổi kể từ lúc trình sửa đọc (admin khác vừa xuất bản). published: bản đang xuất
+// bản lúc phát hiện ({ data, updatedAt, updatedBy }, null nếu chưa có hoặc đọc không được), để trình
+// sửa cho người dùng chọn mở bản đó hay giữ bản của mình.
 export class StalePublishError extends Error {
-  constructor() {
-    super("Bản xuất bản vừa bị người khác thay đổi, tải lại trang để xem bản mới rồi xuất bản lại.");
+  constructor(published = null) {
+    super("Bản xuất bản vừa bị người khác thay đổi.");
     this.code = "content/stale-published";
+    this.published = published;
   }
 }
 
@@ -32,16 +36,6 @@ function plain(data) {
   return JSON.parse(JSON.stringify(data));
 }
 
-// So data bất kể thứ tự key (Firestore trả map theo thứ tự riêng).
-function canonical(value) {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.keys(value).sort().map((k) => [k, canonical(value[k])]));
-  }
-  return value;
-}
-const sameData = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
-
 export function createContentStore({ db, getUser }) {
   const draftRef = doc(db, "siteContent", "draft");
   const publishedRef = doc(db, "siteContent", "published");
@@ -54,20 +48,34 @@ export function createContentStore({ db, getUser }) {
   }
 
   // Bản để sửa: nháp nếu có, không thì bản đang xuất bản, không thì wedding-data.js (lần đầu).
-  async function load() {
+  // fromPublished: bỏ qua nháp, sửa tiếp từ bản đang xuất bản (nếu có).
+  // draftBehind: nháp soạn trên bản xuất bản cũ hơn bản đang xuất bản (xem isDraftBehind).
+  async function load({ fromPublished = false } = {}) {
     const [draft, published] = await Promise.all([getDoc(draftRef), getDoc(publishedRef)]);
     const meta = {
       draft: draft.exists() ? draft.data() : null,
       published: published.exists() ? published.data() : null,
     };
-    if (meta.draft) return { data: plain(meta.draft.data), origin: "draft", ...meta };
+    meta.draftBehind = isDraftBehind(meta.draft, meta.published);
+    if (meta.draft && !(fromPublished && meta.published)) return { data: plain(meta.draft.data), origin: "draft", ...meta };
     if (meta.published) return { data: plain(meta.published.data), origin: "published", ...meta };
     if (!window.WEDDING_DATA) throw new Error("Không nạp được wedding-data.js.");
     return { data: plain(window.WEDDING_DATA), origin: "file", ...meta };
   }
 
-  async function saveDraft(data) {
-    await setDoc(draftRef, { data: plain(data), updatedAt: serverTimestamp(), updatedBy: email() });
+  // Nháp chỉ được ghi khi bản published vẫn là bản nội dung đang sửa dựa trên (expectedUpdatedAt như
+  // publish): nếu không, một nháp soạn từ bản cũ sẽ nằm trên máy chủ và người mở trình sửa sau đó
+  // xuất bản nó đè bản mới mà không ai được cảnh báo. Transaction: published đổi giữa lúc đọc và lúc
+  // ghi thì SDK đọc lại và lần này báo Stale. Cùng bản published thì người lưu sau thắng.
+  async function saveDraft(data, expectedUpdatedAt) {
+    const by = email();
+    const content = plain(data);
+    await runTransaction(db, async (tx) => {
+      const current = await tx.get(publishedRef);
+      const now = current.exists() ? current.data() : null;
+      if (!sameStamp(now ? now.updatedAt : null, expectedUpdatedAt)) throw new StalePublishError(now);
+      tx.set(draftRef, { data: content, updatedAt: serverTimestamp(), updatedBy: by });
+    });
   }
 
   // Một transaction: bản published cũ (nếu có) chép nguyên sang lịch sử, ghi published mới, nháp =
@@ -84,7 +92,7 @@ export function createContentStore({ db, getUser }) {
       await runTransaction(db, async (tx) => {
         const current = await tx.get(publishedRef);
         const old = current.exists() ? current.data() : null;
-        if (!sameStamp(old ? old.updatedAt : null, expectedUpdatedAt)) throw new StalePublishError();
+        if (!sameStamp(old ? old.updatedAt : null, expectedUpdatedAt)) throw new StalePublishError(old);
         if (old) {
           tx.set(doc(historyCol), { data: old.data, publishedAt: old.updatedAt, publishedBy: by });
         }
@@ -96,7 +104,7 @@ export function createContentStore({ db, getUser }) {
       if (error && error.code === "permission-denied") {
         const now = await getDoc(publishedRef).catch(() => null);
         if (now && !sameStamp(now.exists() ? now.data().updatedAt : null, expectedUpdatedAt)) {
-          throw new StalePublishError();
+          throw new StalePublishError(now.exists() ? now.data() : null);
         }
       }
       throw error;
@@ -105,7 +113,7 @@ export function createContentStore({ db, getUser }) {
     try {
       const after = await getDoc(publishedRef);
       const now = after.exists() ? after.data() : null;
-      return now && now.updatedBy === by && sameData(now.data, content) ? now.updatedAt : UNKNOWN_PUBLISHED;
+      return now && now.updatedBy === by && sameContent(now.data, content) ? now.updatedAt : UNKNOWN_PUBLISHED;
     } catch {
       return UNKNOWN_PUBLISHED;
     }

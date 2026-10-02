@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  validateContent, urlProblem, setPath, getPath, toFirestoreValue, splitISO, joinISO,
+  validateContent, urlProblem, setPath, getPath, toFirestoreValue, splitISO, joinISO, sameContent, isDraftBehind,
 } from "../../docs/admin/content-model.js";
 
 function sample() {
@@ -137,4 +137,28 @@ test("splitISO/joinISO giữ múi giờ, mặc định +07:00", () => {
   assert.equal(joinISO("2026-10-25", "09:00", ""), "2026-10-25T09:00:00+07:00");
   assert.equal(joinISO("2026-10-25", "", ":00+07:00"), "2026-10-25");
   assert.equal(joinISO("", "09:00", ""), "");
+});
+
+test("sameContent không nhạy thứ tự key, nhạy giá trị và thứ tự mảng", () => {
+  assert.equal(sameContent({ a: 1, b: { c: [1, { d: "x", e: null }] } }, { b: { c: [1, { e: null, d: "x" }] }, a: 1 }), true);
+  assert.equal(sameContent({ a: [1, 2] }, { a: [2, 1] }), false);
+  assert.equal(sameContent({ a: "Thiện" }, { a: "Thien" }), false);
+});
+
+// M1c: nháp soạn trên bản xuất bản cũ hơn bản đang xuất bản -> trình sửa phải cảnh báo khi nạp.
+test("isDraftBehind: nháp có mốc trước published và khác nội dung", () => {
+  const at = (ms) => ({ toMillis: () => ms });
+  const doc = (title, ms) => ({ data: { meta: { title } }, updatedAt: at(ms), updatedBy: "x@y" });
+  // published đổi sau nháp, nháp khác nội dung -> cũ
+  assert.equal(isDraftBehind(doc("nháp A từ p0", 1000), doc("bản B", 2000)), true);
+  // xuất bản ghi nháp cùng mốc -> không cũ
+  assert.equal(isDraftBehind(doc("p1", 2000), doc("p1", 2000)), false);
+  // nháp lưu sau bản đang xuất bản -> không cũ (trình sửa đã chặn lưu nháp trên bản cũ)
+  assert.equal(isDraftBehind(doc("nháp mới", 3000), doc("p1", 2000)), false);
+  // mốc trước nhưng nội dung trùng -> vô hại
+  assert.equal(isDraftBehind(doc("p1", 1000), doc("p1", 2000)), false);
+  // thiếu nháp / published / mốc -> không kết luận được, không chặn
+  assert.equal(isDraftBehind(null, doc("p1", 2000)), false);
+  assert.equal(isDraftBehind(doc("a", 1000), null), false);
+  assert.equal(isDraftBehind({ data: {}, updatedAt: null }, doc("p1", 2000)), false);
 });

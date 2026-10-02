@@ -58,6 +58,22 @@
   gap: 1.25rem;
 }
 
+/* Thông báo tự cuộn tới (showAlert): không nằm khuất dưới đầu trang + thanh mục dính trên điện thoại,
+   dưới thanh công cụ dính trên máy tính. */
+#content-alert { scroll-margin-top: calc(var(--header-h) + 4.5rem); }
+@media (min-width: 992px) {
+  #content-alert { scroll-margin-top: calc(var(--header-h) + var(--content-toolbar-h, 8rem) + .5rem); }
+}
+
+/* Bản xuất bản đã đổi (content-editor.js showConflict): lựa chọn nằm ngay trong thông báo. */
+.content-conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-top: .5rem;
+}
+.content-conflict-hint { margin-top: .4rem; opacity: .85; }
+
 .content-form {
   display: flex;
   flex-direction: column;

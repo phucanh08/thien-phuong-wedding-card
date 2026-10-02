@@ -48,14 +48,14 @@ window.WEDDING_DATA = {
         ]
     },
 
-    // Chưa có giờ: startISO/endISO chỉ có ngày (sự kiện hiện không kèm giờ, lịch thành cả ngày). Thêm "T09:00:00+07:00" khi có giờ.
+    // Nhà trai đã có giờ (endISO = startISO vì chưa có giờ kết thúc); nhà gái chưa có giờ nên startISO/endISO chỉ có ngày (lịch thành cả ngày). Thêm "T09:00:00+07:00" khi có giờ.
     events: [
         {
             key: "groom-drinks",
-            title: "UỐNG NƯỚC, ĂN CỖ NHÀ TRAI",
+            title: "TIỆC CƯỚI NHÀ TRAI",
             side: "groom",
-            startISO: "2026-10-24",
-            endISO: "2026-10-24",
+            startISO: "2026-10-24T16:30:00+07:00",
+            endISO: "2026-10-24T16:30:00+07:00",
             lunarText: "15 tháng 9 năm Bính Ngọ",
             venue: "Tư gia nhà trai",
             address: "Số 63, đường Đền Trình Tuyết Sơn, Phú Yên, Hương Sơn, Mỹ Đức, Hà Nội",
@@ -65,10 +65,10 @@ window.WEDDING_DATA = {
         },
         {
             key: "groom-ceremony",
-            title: "LỄ CƯỚI NHÀ TRAI",
+            title: "LỄ THÀNH HÔN",
             side: "groom",
-            startISO: "2026-10-25",
-            endISO: "2026-10-25",
+            startISO: "2026-10-25T10:00:00+07:00",
+            endISO: "2026-10-25T10:00:00+07:00",
             lunarText: "16 tháng 9 năm Bính Ngọ",
             venue: "Tư gia nhà trai",
             address: "Số 63, đường Đền Trình Tuyết Sơn, Phú Yên, Hương Sơn, Mỹ Đức, Hà Nội",

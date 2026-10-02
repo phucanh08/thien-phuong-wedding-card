@@ -3,7 +3,9 @@
 // Sửa trực tiếp trên một bản sao của data nên field không có ô sửa (field lạ, video...) giữ nguyên.
 import { createContentStore, UNKNOWN_PUBLISHED } from "./content-store.js";
 import { createPreview } from "./content-preview.js";
-import { validateContent, getPath, setPath, splitISO, joinISO, cardVersion, CARD_VERSIONS, galleryCountText } from "./content-model.js";
+import {
+  validateContent, getPath, setPath, splitISO, joinISO, cardVersion, CARD_VERSIONS, galleryCountText, replaceGalleryImage,
+} from "./content-model.js";
 import { whereOf } from "./content-labels.js";
 import { createImagePicker } from "./image-picker.js";
 import { uploadToWorker } from "./image-upload.js";
@@ -766,7 +768,19 @@ export function createContentSection({ db, getUser, getIdToken }) {
         details.append(el("summary", "small", "Đường dẫn ảnh"));
         textField(details, { path: `${p}.small`, label: "Bản nhỏ" });
         textField(details, { path: `${p}.large`, label: "Bản lớn" });
-        fieldsBox.append(details, listControls(items, i, rerender));
+        // Thay ảnh tại chỗ: cùng hộp chọn/cắt/tải như "Thêm ảnh vào album…"; huỷ hay tải lỗi thì ảnh cũ giữ nguyên.
+        const replace = button("Thay ảnh…", "btn-sm btn-outline-secondary", () => openPicker({
+          title: `Thay ảnh ${i + 1} của album`,
+          hint: "Ảnh mới thay đúng vị trí này; ô Lưới v1 / Lưới v2 và chú thích giữ nguyên.",
+          kind: "album",
+          onUploaded: (result) => {
+            if (!replaceGalleryImage(state.data.gallery, item, result)) return;
+            rerender();
+            changed();
+          },
+        }));
+        replace.dataset.replaceFor = p;
+        fieldsBox.append(replace, details, listControls(items, i, rerender));
         box.append(fieldsBox);
         list.append(box);
       });

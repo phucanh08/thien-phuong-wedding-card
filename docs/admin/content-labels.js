@@ -23,7 +23,7 @@ const RULES = {
   "wedding.invitationText": { tag: BOTH, note: "v2 dùng lời ngỏ khi “Câu dẫn” để trống" },
   "events.*.endISO": { tag: BOTH, note: "giờ hiện dạng “HH:mm – HH:mm” và dùng cho nút Thêm vào lịch" },
   "events.*.image": { tag: "V1" },
-  "gallery.*.featured": { tag: "V1" },
+  "gallery.*.featured": { tag: "V1", note: "v2 cũng dùng lưới này khi chưa chọn ảnh “Lưới v2” nào" },
   "gallery.*.featuredV2": { tag: "V2" },
 };
 

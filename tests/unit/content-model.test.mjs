@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   validateContent, urlProblem, setPath, getPath, toFirestoreValue, splitISO, joinISO, sameContent, isDraftBehind,
-  galleryCountText,
+  galleryCountText, replaceGalleryImage,
 } from "../../docs/admin/content-model.js";
 
 function sample() {
@@ -194,4 +194,37 @@ test("ô Lưới v2: tick ghi featuredV2 = true, bỏ tick xoá key; không đ�
   setPath(data, "gallery.1.featuredV2", undefined);
   assert.deepEqual(data.gallery, [{ small: "a", featured: true }, { small: "b" }]);
   assert.equal("featuredV2" in data.gallery[1], false);
+});
+
+// G2: nút "Thay ảnh…" của một ảnh album: ảnh mới (small/large từ Worker) thay đúng ảnh đó; cờ lưới,
+// chú thích, field lạ và thứ tự album giữ nguyên. Ảnh không còn trong album (album đã bị thay cả,
+// vd mở bản khác) -> không đổi gì.
+test("replaceGalleryImage: thay small/large đúng ảnh, giữ cờ, chú thích, thứ tự", () => {
+  const a = { small: "a-s", large: "a-l", featured: true };
+  const b = { small: "b-s", large: "b-l", featuredV2: true, caption: "Ảnh B", extra: 1 };
+  const c = { small: "c-s" };
+  const gallery = [a, b, c];
+  const urls = { small: "https://w.example/content/new-small.webp", large: "https://w.example/content/new-large.webp", variants: {} };
+  assert.equal(replaceGalleryImage(gallery, b, urls), true);
+  assert.deepEqual(gallery, [
+    { small: "a-s", large: "a-l", featured: true },
+    { small: "https://w.example/content/new-small.webp", large: "https://w.example/content/new-large.webp", featuredV2: true, caption: "Ảnh B", extra: 1 },
+    { small: "c-s" },
+  ]);
+  assert.equal(gallery[1], b);
+  assert.equal("variants" in gallery[1], false);
+
+  // ảnh chỉ có small trước đó cũng nhận đủ cả hai bản
+  assert.equal(replaceGalleryImage(gallery, c, urls), true);
+  assert.deepEqual(gallery[2], { small: urls.small, large: urls.large });
+});
+
+test("replaceGalleryImage: ảnh không còn trong album -> không đổi gì", () => {
+  const gone = { small: "x-s", large: "x-l", featured: true };
+  const gallery = [{ small: "a-s", large: "a-l" }];
+  const before = JSON.stringify(gallery);
+  assert.equal(replaceGalleryImage(gallery, gone, { small: "n-s", large: "n-l" }), false);
+  assert.equal(JSON.stringify(gallery), before);
+  assert.deepEqual(gone, { small: "x-s", large: "x-l", featured: true });
+  assert.equal(replaceGalleryImage(null, gone, { small: "n-s", large: "n-l" }), false);
 });

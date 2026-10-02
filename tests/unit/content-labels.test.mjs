@@ -85,6 +85,17 @@ test("ghi chú đi kèm: lời ngỏ (v2 dùng khi Câu dẫn trống) và giờ
   assert.equal(whereOf("wedding.introText").note, undefined);
 });
 
+// Ruling Lead (G2, N2 của G1R): ô "Lưới v1" giữ nhãn V1 nhưng ghi chú rằng v2 cũng dùng lưới này khi
+// chưa chọn ảnh "Lưới v2". Ô "Lưới v2" chỉ có nhãn V2.
+test("ghi chú Lưới v1: v2 dùng lưới v1 khi chưa chọn ảnh Lưới v2", () => {
+  const v1 = whereOf("gallery.5.featured");
+  assert.equal(v1.tag, "V1");
+  assert.match(v1.note, /v2/);
+  assert.match(v1.note, /Lưới v2/);
+  assert.match(v1.note, /chưa chọn/);
+  assert.deepEqual(whereOf("gallery.5.featuredV2"), { tag: "V2" });
+});
+
 test("không có ô birthday trong trình sửa (giá trị cũ được giữ vì field lạ không bị đụng)", () => {
   const source = readFileSync(new URL("../../docs/admin/content-editor.js", import.meta.url), "utf8");
   assert.doesNotMatch(source, /birthday/);

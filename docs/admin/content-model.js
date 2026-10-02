@@ -178,6 +178,16 @@ export function galleryCountText(gallery) {
   return `${items.length} ảnh · Lưới v1: ${v1Text} · Lưới v2: ${v2Text}`;
 }
 
+// Nút "Thay ảnh…" của một ảnh album (G2): ảnh vừa tải lên ({ small, large } từ Worker) thay đúng ảnh
+// `item` (so theo tham chiếu, không theo chỉ số), giữ cờ lưới, chú thích, field lạ và thứ tự album.
+// `item` không còn trong album (album đã bị thay trong lúc chọn ảnh) -> không đổi gì, trả false.
+export function replaceGalleryImage(gallery, item, { small, large }) {
+  if (!Array.isArray(gallery) || !gallery.includes(item)) return false;
+  item.small = small;
+  item.large = large;
+  return true;
+}
+
 // draft/published: { data, updatedAt (Timestamp: có toMillis), updatedBy } hoặc null.
 // Xuất bản luôn ghi nháp cùng mốc với published, nên nháp có mốc trước published là nháp soạn trên một
 // bản xuất bản cũ (vd published đổi bằng công cụ khác): lưu/xuất bản nó sẽ xoá thay đổi của bản mới.

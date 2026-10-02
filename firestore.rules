@@ -131,18 +131,28 @@ service cloud.firestore {
     }
 
     // ---- Nội dung thiệp (C6) ----
-    // Shape của data không validate (admin tin cậy); chỉ kiểm key cấp trên và người ghi.
+    // Shape bên trong data không validate (admin tin cậy); chỉ kiểm các ràng buộc doc của C6.
+    // updatedAt chỉ bắt kiểu timestamp như C6, không bắt == request.time.
 
     function validContent(data) {
       return data.keys().hasOnly(["data", "updatedAt", "updatedBy"])
         && data.keys().hasAll(["data", "updatedAt", "updatedBy"])
+        && data.data is map
+        && data.updatedAt is timestamp
         && data.updatedBy == request.auth.token.email;
     }
 
+    // Bản lịch sử là bản chép của published hiện có (trước batch xuất bản): cùng data,
+    // publishedAt = updatedAt của bản đó, publishedBy = admin đang xuất bản bản mới.
     function validHistory(data) {
+      let old = get(/databases/$(database)/documents/siteContent/published).data;
       return data.keys().hasOnly(["data", "publishedAt", "publishedBy"])
         && data.keys().hasAll(["data", "publishedAt", "publishedBy"])
-        && data.publishedBy == request.auth.token.email;
+        && data.data is map
+        && data.publishedAt is timestamp
+        && data.publishedBy == request.auth.token.email
+        && data.data == old.data
+        && data.publishedAt == old.updatedAt;
     }
 
     match /siteContent/{docId} {
@@ -150,12 +160,14 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create, update: if docId in ["published", "draft"] && isAdmin()
         && validContent(request.resource.data);
-      allow delete: if docId in ["published", "draft"] && isAdmin();
+      // published không xoá được; muốn quay lại thì khôi phục từ lịch sử.
+      allow delete: if docId == "draft" && isAdmin();
     }
 
+    // Chỉ thêm mới, không sửa; admin xoá được.
     match /siteContentHistory/{historyId} {
       allow read, delete: if isAdmin();
-      allow create, update: if isAdmin() && validHistory(request.resource.data);
+      allow create: if isAdmin() && validHistory(request.resource.data);
     }
   }
 }

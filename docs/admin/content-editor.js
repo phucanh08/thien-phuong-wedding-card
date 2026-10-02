@@ -4,6 +4,7 @@
 import { createContentStore, UNKNOWN_PUBLISHED } from "./content-store.js";
 import { createPreview } from "./content-preview.js";
 import { validateContent, getPath, setPath, splitISO, joinISO, cardVersion, CARD_VERSIONS } from "./content-model.js";
+import { whereOf } from "./content-labels.js";
 import { createImagePicker } from "./image-picker.js";
 import { uploadToWorker } from "./image-upload.js";
 
@@ -228,11 +229,22 @@ export function createContentSection({ db, getUser, getIdToken }) {
     }
   }
 
-  function fieldShell(parent, label, hint, id) {
+  // Nhãn nhỏ cạnh tên ô: ô này hiện ở V1, V2 hay cả hai (hoặc dùng làm gì nếu không hiện thành chữ).
+  function whereBadge(path) {
+    const { tag, note } = whereOf(path);
+    const badge = el("span", "content-where-badge", tag);
+    badge.dataset.where = tag;
+    if (!note) return [badge];
+    return [badge, el("span", "content-where-note", note)];
+  }
+
+  function fieldShell(parent, label, hint, id, path) {
     const wrap = el("div", "content-field");
     const labelEl = el("label", "form-label", label);
     if (id) labelEl.htmlFor = id;
-    wrap.append(labelEl);
+    const head = el("div", "content-field-head");
+    head.append(labelEl, ...whereBadge(path));
+    wrap.append(head);
     const body = el("div", "content-field-body");
     wrap.append(body);
     if (hint) wrap.append(el("div", "form-text", hint));
@@ -246,7 +258,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
   // Ô chữ. optional: bỏ trống -> xoá key (thiệp dùng mặc định); emptyValue: giá trị khi bỏ trống.
   function textField(parent, { path, label, hint, multiline = false, optional = false, emptyValue, rows = 3, placeholder }) {
     const id = nextId("f");
-    const { wrap, body, feedback } = fieldShell(parent, label, hint, id);
+    const { wrap, body, feedback } = fieldShell(parent, label, hint, id, path);
     const input = multiline ? el("textarea", "form-control") : el("input", "form-control");
     if (multiline) input.rows = rows;
     else input.type = "text";
@@ -270,7 +282,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
   // Mảng chữ, mỗi dòng một phần tử (lời ngỏ).
   function linesField(parent, { path, label, hint }) {
     const id = nextId("f");
-    const { wrap, body, feedback } = fieldShell(parent, label, hint, id);
+    const { wrap, body, feedback } = fieldShell(parent, label, hint, id, path);
     const input = el("textarea", "form-control");
     input.id = id;
     input.rows = 4;
@@ -287,7 +299,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
 
   function dateField(parent, { path, label, hint, optional = false }) {
     const id = nextId("f");
-    const { wrap, body, feedback } = fieldShell(parent, label, hint, id);
+    const { wrap, body, feedback } = fieldShell(parent, label, hint, id, path);
     const input = el("input", "form-control content-date");
     input.type = "date";
     input.id = id;
@@ -305,7 +317,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
   // Ngày + giờ (giờ bỏ trống = cả ngày). Giây/múi giờ gốc được giữ, mặc định +07:00.
   function dateTimeField(parent, { path, label, hint, optional = false }) {
     const id = nextId("f");
-    const { wrap, body, feedback } = fieldShell(parent, label, hint, id);
+    const { wrap, body, feedback } = fieldShell(parent, label, hint, id, path);
     const original = splitISO(getPath(state.data, path));
     const date = el("input", "form-control content-date");
     date.type = "date";
@@ -331,7 +343,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
 
   function selectField(parent, { path, label, options }) {
     const id = nextId("f");
-    const { wrap, body, feedback } = fieldShell(parent, label, "", id);
+    const { wrap, body, feedback } = fieldShell(parent, label, "", id, path);
     const select = el("select", "form-select");
     select.id = id;
     select.dataset.path = path;
@@ -362,13 +374,13 @@ export function createContentSection({ db, getUser, getIdToken }) {
       setPath(state.data, path, input.checked ? true : undefined);
       changed();
     });
-    wrap.append(input, labelEl);
+    wrap.append(input, labelEl, ...whereBadge(path));
     parent.append(wrap);
   }
 
   // Danh sách màu trang phục: ô chọn màu + ô mã (#rgb / #rrggbb).
   function colorsField(parent, { path, label, hint }) {
-    const { wrap, body, feedback } = fieldShell(parent, label, hint);
+    const { wrap, body, feedback } = fieldShell(parent, label, hint, undefined, path);
     register(path, label, wrap, [], feedback);
     const list = el("div", "content-colors");
     body.append(list);
@@ -431,7 +443,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
   // set(value): ghi giá trị; mặc định setPath, bỏ trống thì xoá key nếu optional.
   function imageField(parent, { path, label, hint, kind, variant = "small", optional = false, set }) {
     const id = nextId("f");
-    const { wrap, body, feedback } = fieldShell(parent, label, hint, id);
+    const { wrap, body, feedback } = fieldShell(parent, label, hint, id, path);
     const row = el("div", "content-image");
     const thumb = el("img", "content-thumb");
     thumb.alt = "";
@@ -550,7 +562,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
   function renderVersion(parent) {
     const box = el("div", "content-version");
     const id = nextId("f");
-    const { wrap, body, feedback } = fieldShell(box, "Phiên bản thiệp", VERSION_HINT, id);
+    const { wrap, body, feedback } = fieldShell(box, "Phiên bản thiệp", VERSION_HINT, id, "site.version");
     const select = el("select", "form-select");
     select.id = id;
     select.dataset.path = "site.version";
@@ -584,11 +596,10 @@ export function createContentSection({ db, getUser, getIdToken }) {
       const p = `couple.${side}`;
       textField(box, { path: `${p}.shortName`, label: `Tên ngắn ${name.toLowerCase()} *`, hint: "Bắt buộc. Tên lớn trên ảnh bìa và phong bì." });
       textField(box, { path: `${p}.fullName`, label: "Họ và tên", hint: "Bỏ trống thì dùng tên ngắn." });
-      imageField(box, { path: `${p}.photo`, label: `Ảnh chân dung ${name.toLowerCase()}`, kind: "portrait", variant: "small", hint: "Khung dọc 2:3 trong mục Cô dâu & Chú rể (v1)." });
+      imageField(box, { path: `${p}.photo`, label: `Ảnh chân dung ${name.toLowerCase()}`, kind: "portrait", variant: "small", hint: "Khung dọc 2:3 trong mục Cô dâu & Chú rể." });
       textField(box, { path: `${p}.father`, label: "Bố" });
       textField(box, { path: `${p}.mother`, label: "Mẹ" });
       textField(box, { path: `${p}.address`, label: "Địa chỉ gia đình", optional: true });
-      textField(box, { path: `${p}.birthday`, label: "Ngày sinh", optional: true });
       textField(box, { path: `${p}.bio`, label: "Lời giới thiệu", multiline: true });
       urlField(box, { path: `${p}.facebook`, label: "Link Facebook", emptyValue: null, hint: "Bỏ trống để ẩn nút Facebook." });
     }
@@ -609,24 +620,24 @@ export function createContentSection({ db, getUser, getIdToken }) {
     const date = group(body, "Ngày cưới");
     dateField(date, { path: "wedding.dateISO", label: "Ngày cưới *", hint: "Bắt buộc. Lịch tháng và đồng hồ đếm ngược tính theo ngày này." });
     textField(date, { path: "wedding.lunarText", label: "Ngày âm lịch", placeholder: "16 tháng 9 năm Bính Ngọ" });
-    dateField(date, { path: "wedding.rsvpDeadline", label: "Hạn xác nhận tham dự", optional: true, hint: "Tuỳ chọn (v2): câu “Vui lòng phản hồi trước…”. Bỏ trống để ẩn." });
+    dateField(date, { path: "wedding.rsvpDeadline", label: "Hạn xác nhận tham dự", optional: true, hint: "Tuỳ chọn: câu “Vui lòng phản hồi trước…”. Bỏ trống để ẩn." });
 
     const images = group(body, "Ảnh");
     imageField(images, { path: "wedding.mainImage", label: "Ảnh bìa", kind: "cover", variant: "large", hint: "v1: ảnh lớn đầu thiệp. v2: ảnh bìa trên cùng sau khi mở phong bì. Khung dọc 2:3." });
     imageField(images, { path: "wedding.invitationImage", label: "Ảnh lời ngỏ", kind: "cover", variant: "large", hint: "v1: ảnh cạnh mục Lời ngỏ. v2: ảnh polaroid ở phần đếm ngược. Khung dọc 2:3." });
-    imageField(images, { path: "wedding.envelopeImage", label: "Ảnh trong phong bì (v2)", kind: "cover", variant: "large", optional: true, hint: "Tuỳ chọn: ảnh lộ ra khi mở phong bì. Bỏ trống thì dùng ảnh bìa." });
+    imageField(images, { path: "wedding.envelopeImage", label: "Ảnh trong phong bì", kind: "cover", variant: "large", optional: true, hint: "Tuỳ chọn: ảnh lộ ra khi mở phong bì. Bỏ trống thì dùng ảnh bìa." });
     ["Ảnh lớn", "Ảnh nhỏ trái", "Ảnh nhỏ phải"].forEach((name, i) => imageField(images, coverSpec(name, i)));
 
     const texts = group(body, "Lời ngỏ & lời cảm ơn");
-    linesField(texts, { path: "wedding.invitationText", label: "Lời ngỏ", hint: "v1: mục Lời ngỏ. Mỗi dòng là một đoạn." });
-    textField(texts, { path: "wedding.introText", label: "Câu dẫn (v2)", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu ngay trên đồng hồ đếm ngược. Bỏ trống thì dùng câu mặc định." });
-    textField(texts, { path: "wedding.thanksText", label: "Lời cảm ơn (v2)", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu dưới chữ “Thank you” cuối thiệp. Bỏ trống thì dùng câu mặc định." });
+    linesField(texts, { path: "wedding.invitationText", label: "Lời ngỏ", hint: "Mỗi dòng là một đoạn." });
+    textField(texts, { path: "wedding.introText", label: "Câu dẫn", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu ngay trên đồng hồ đếm ngược. Bỏ trống thì dùng câu mặc định." });
+    textField(texts, { path: "wedding.thanksText", label: "Lời cảm ơn", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu dưới chữ “Thank you” cuối thiệp. Bỏ trống thì dùng câu mặc định." });
   }
 
   function coverSpec(name, i) {
     return {
       path: `wedding.coverImages.${i}`,
-      label: `“With you” (v2): ${name.toLowerCase()}`,
+      label: `“With you”: ${name.toLowerCase()}`,
       kind: "album",
       variant: i === 0 ? "large" : "small",
       hint: i === 0 ? "Tuỳ chọn: ba ảnh mục “With you”. Bỏ trống thì lấy từ ảnh “Hiện ở lưới” của album." : "",
@@ -650,7 +661,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
       textField(box, { path: `${p}.address`, label: "Địa chỉ" });
       urlField(box, { path: `${p}.mapUrl`, label: "Link bản đồ", hint: "Nút “Chỉ đường” mở link này (Google Maps…)." });
       textField(box, { path: `${p}.note`, label: "Ghi chú", optional: true, hint: "Tuỳ chọn: dòng nhỏ dưới sự kiện." });
-      imageField(box, { path: `${p}.image`, label: "Ảnh sự kiện", kind: "event", variant: "small", hint: "v1: ảnh trên thẻ sự kiện, khung 7:6." });
+      imageField(box, { path: `${p}.image`, label: "Ảnh sự kiện", kind: "event", variant: "small", hint: "Ảnh trên thẻ sự kiện, khung 7:6." });
       colorsField(box, { path: `${p}.dressCode`, label: "Màu trang phục", hint: "Chấm màu gợi ý trang phục (Dresscode). Mã dạng #rgb hoặc #rrggbb." });
     });
   }

@@ -130,7 +130,25 @@
   overflow-wrap: anywhere;
 }
 
-.content-field .form-label { margin-bottom: .3rem; font-size: .9rem; }
+.content-field .form-label { margin-bottom: 0; font-size: .9rem; }
+.content-field-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .15rem .5rem;
+  margin-bottom: .3rem;
+}
+.content-where-badge {
+  padding: .05rem .5rem;
+  border-radius: 999px;
+  background: var(--rose-soft);
+  color: var(--rose-dark);
+  font-size: .72rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.content-where-note { font-size: .75rem; color: #7a666d; }
+.form-check .content-where-badge { margin-left: .5rem; }
 .content-field .form-text { margin-top: .25rem; }
 
 .content-datetime {

@@ -120,7 +120,6 @@ function showRsvpMessage(form, type, text) {
 // onSending: gọi ngay trước khi ghi (đã qua kiểm tra), để trang khoá nút gửi.
 export async function sendRsvp({ name, attending, count, events }, onSending) {
     await guestReady;
-    if (rsvpAnonymousSent) return { ok: true, message: 'Bạn đã xác nhận rồi, cảm ơn bạn!' };
     name = (name || '').trim();
     if (!name || !ATTENDING_VALUES.includes(attending)) {
         return { ok: false, message: 'Vui lòng nhập tên và cho chúng tôi biết bạn có tham dự không.' };
@@ -131,6 +130,18 @@ export async function sendRsvp({ name, attending, count, events }, onSending) {
         return { ok: false, message: 'Vui lòng chọn số người đi cùng.' };
     }
     events = attending === 'no' || !Array.isArray(events) ? [] : events;
+
+    // Khách không code chỉ tạo được một rsvp (rules không cho sửa): câu trả lời khác lần đã lưu thì nói rõ là không lưu.
+    if (rsvpAnonymousSent) {
+        if (rsvpAnswerKey(name, attending, count, events) === rsvpAnonymousSent) {
+            return { ok: true, message: 'Bạn đã xác nhận rồi, cảm ơn bạn!' };
+        }
+        return {
+            ok: false,
+            message: 'Câu trả lời mới của bạn chưa được lưu: bạn đã xác nhận một lần và không thể sửa trên thiệp. '
+                + 'Nếu muốn thay đổi, bạn vui lòng liên hệ trực tiếp cô dâu chú rể nhé!'
+        };
+    }
 
     if (onSending) onSending();
     try {
@@ -151,6 +162,11 @@ export async function sendRsvp({ name, attending, count, events }, onSending) {
     }
 }
 
+// Khóa so sánh hai câu trả lời (thứ tự lễ không quan trọng)
+function rsvpAnswerKey(name, attending, count, events) {
+    return JSON.stringify([name, attending, count, [...events].sort()]);
+}
+
 async function writeRsvp(name, attending, count, events) {
     const data = {
         code: currentGuest ? currentGuest.code : null,
@@ -165,7 +181,7 @@ async function writeRsvp(name, attending, count, events) {
     // (ref giữ lại để thử lại sau timeout không đẻ thêm doc), và chỉ gửi được một lần (rules chỉ cho create).
     const ref = currentGuest ? doc(db, 'rsvp', currentGuest.code) : (anonymousRsvpRef ||= doc(collection(db, 'rsvp')));
     await withTimeout(setDoc(ref, data), WRITE_TIMEOUT_MS);
-    if (!currentGuest) rsvpAnonymousSent = true;
+    if (!currentGuest) rsvpAnonymousSent = rsvpAnswerKey(name, attending, count, events);
 }
 
 // Form RSVP của v1
@@ -279,7 +295,7 @@ const guestId = (new URLSearchParams(location.search).get('code') || '').trim().
 let currentGuest = null;
 let guestLookupFailed = false;
 let anonymousRsvpRef = null;
-let rsvpAnonymousSent = false;
+let rsvpAnonymousSent = ''; // khóa câu trả lời khách không code đã gửi; rỗng = chưa gửi
 const guestReady = lookupGuest(guestId, LOOKUP_TIMEOUT_MS).then(result => {
     guestLookupFailed = Boolean(result.failed);
     setGuest(result.guest || null);

@@ -69,6 +69,15 @@ beforeEach(async () => {
       mustChangePassword: false,
       requestedAt: Timestamp.now(),
     });
+    await setDoc(doc(db, "accessRequests", "approvedForcedUid"), {
+      email: "fresh@thien-phuong-wedding.local",
+      displayName: "fresh",
+      provider: "password",
+      username: "fresh",
+      status: "approved",
+      mustChangePassword: true,
+      requestedAt: Timestamp.now(),
+    });
     await setDoc(doc(db, "accessRequests", "pendingUid"), pendingRequest("pending@gmail.com"));
     await setDoc(doc(db, "accessRequests", "forcedUid"), {
       ...pendingRequest("forced@thien-phuong-wedding.local"),
@@ -90,6 +99,7 @@ const user = (uid, email, emailVerified = true) =>
   env.authenticatedContext(uid, { email, email_verified: emailVerified }).firestore();
 const pendingUser = () => user("pendingUid", "pending@gmail.com");
 const newcomer = () => user("newUid", "new@gmail.com");
+const approvedForcedAdmin = () => user("approvedForcedUid", "fresh@thien-phuong-wedding.local");
 const approvedAdmin = () => user("approvedUid", "editor@thien-phuong-wedding.local");
 const superGoogle = () => user("superG", SUPER_GOOGLE, true);
 const superPassword = () => user("superP", SUPER_PASSWORD, false);
@@ -104,7 +114,7 @@ function validRsvp(over = {}) {
     count: 2,
     events: ["ceremony"],
     note: "Sẽ tới",
-    updatedAt: Timestamp.now(),
+    updatedAt: serverTimestamp(),
     ...over,
   };
 }
@@ -118,7 +128,7 @@ function validWish(over = {}) {
     name: "Chị Lan",
     message: "Trăm năm hạnh phúc",
     code: null,
-    createdAt: Timestamp.now(),
+    createdAt: serverTimestamp(),
     ...over,
   };
 }
@@ -160,13 +170,18 @@ describe("khách: rsvp/{code}", () => {
   });
   test("sửa khi guest tồn tại", async () => {
     await assertSucceeds(setDoc(doc(guest(), "rsvp", GUEST_CODE), validRsvp({ attending: "no", count: 0 })));
-    await assertSucceeds(updateDoc(doc(guest(), "rsvp", GUEST_CODE), { count: 3 }));
+    await assertSucceeds(updateDoc(doc(guest(), "rsvp", GUEST_CODE), { count: 3, updatedAt: serverTimestamp() }));
   });
   test("serverTimestamp cho updatedAt được chấp nhận", async () => {
     await assertSucceeds(setDoc(doc(guest(), "rsvp", GUEST_CODE), validRsvp({ updatedAt: serverTimestamp() })));
   });
   test("chặn khi guests/{code} không tồn tại", async () => {
     await assertFails(setDoc(doc(guest(), "rsvp", MISSING_CODE), validRsvp({ code: MISSING_CODE })));
+  });
+  test("chặn sửa khi guests/{code} đã bị xoá", async () => {
+    await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), "guests", GUEST_CODE)));
+    await assertFails(setDoc(doc(guest(), "rsvp", GUEST_CODE), validRsvp({ count: 3 })));
+    await assertFails(updateDoc(doc(guest(), "rsvp", GUEST_CODE), { count: 3, updatedAt: serverTimestamp() }));
   });
   test("chặn khi field code khác doc id", async () => {
     await assertFails(setDoc(doc(guest(), "rsvp", GUEST_CODE), validRsvp({ code: MISSING_CODE })));
@@ -204,61 +219,93 @@ describe("khách: rsvp/{autoId}", () => {
   });
 });
 
+// Mỗi ca validate chạy trên cả ba đường ghi: sửa rsvp/{code} đã có, tạo rsvp/{code},
+// tạo rsvp/{autoId} (code null + name) — để nhánh create và update đều bị kiểm.
 describe("khách: validate rsvp", () => {
-  const put = (data) => setDoc(doc(guest(), "rsvp", GUEST_CODE), data);
+  const modes = {
+    "update rsvp/{code}": async (data) => setDoc(doc(guest(), "rsvp", GUEST_CODE), data),
+    "create rsvp/{code}": async (data) => {
+      await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), "rsvp", GUEST_CODE)));
+      return setDoc(doc(guest(), "rsvp", GUEST_CODE), data);
+    },
+    "create rsvp/{autoId}": async (data) => {
+      const walkIn = { ...data, name: data.name ?? "Chị Lan" };
+      if ("code" in walkIn) walkIn.code = null;
+      return addDoc(collection(guest(), "rsvp"), walkIn);
+    },
+  };
+  // over ghi đè field; remove là danh sách field bỏ đi.
+  const build = (over, remove) => {
+    const data = validRsvp(over);
+    for (const key of remove) delete data[key];
+    return data;
+  };
+  const ok = async (over = {}, remove = []) => {
+    for (const [mode, write] of Object.entries(modes)) {
+      await assertSucceeds(write(build(over, remove)), mode);
+    }
+  };
+  const bad = async (over = {}, remove = []) => {
+    for (const [mode, write] of Object.entries(modes)) {
+      await assertFails(write(build(over, remove)), mode);
+    }
+  };
   test("count biên 0 và 20 hợp lệ", async () => {
-    await assertSucceeds(put(validRsvp({ count: 0 })));
-    await assertSucceeds(put(validRsvp({ count: 20 })));
+    await ok({ count: 0 });
+    await ok({ count: 20 });
   });
   test("count 21, -1, 1.5, chuỗi bị chặn", async () => {
-    await assertFails(put(validRsvp({ count: 21 })));
-    await assertFails(put(validRsvp({ count: -1 })));
-    await assertFails(put(validRsvp({ count: 1.5 })));
-    await assertFails(put(validRsvp({ count: "2" })));
+    await bad({ count: 21 });
+    await bad({ count: -1 });
+    await bad({ count: 1.5 });
+    await bad({ count: "2" });
   });
   test("attending chỉ yes|no|maybe", async () => {
-    await assertSucceeds(put(validRsvp({ attending: "maybe" })));
-    await assertFails(put(validRsvp({ attending: "YES" })));
-    await assertFails(put(validRsvp({ attending: true })));
+    await ok({ attending: "maybe" });
+    await bad({ attending: "YES" });
+    await bad({ attending: true });
   });
   test("events phải là mảng", async () => {
-    await assertFails(put(validRsvp({ events: "ceremony" })));
+    await bad({ events: "ceremony" });
   });
   test("note ≤ 500, kiểu string, có thể vắng", async () => {
-    await assertSucceeds(put(validRsvp({ note: "a".repeat(500) })));
-    await assertFails(put(validRsvp({ note: "a".repeat(501) })));
-    await assertFails(put(validRsvp({ note: 5 })));
-    const { note, ...noNote } = validRsvp();
-    await assertSucceeds(put(noNote));
+    await ok({ note: "a".repeat(500) });
+    await bad({ note: "a".repeat(501) });
+    await bad({ note: 5 });
+    await ok({}, ["note"]);
   });
-  test("updatedAt phải là timestamp", async () => {
-    await assertFails(put(validRsvp({ updatedAt: "2026-10-02" })));
+  test("updatedAt phải == request.time (serverTimestamp)", async () => {
+    await ok({ updatedAt: serverTimestamp() });
+    await bad({ updatedAt: Timestamp.now() });
+    await bad({ updatedAt: Timestamp.fromMillis(Date.now() + 86_400_000) });
+    await bad({ updatedAt: "2026-10-02" });
   });
   test("thiếu field bắt buộc bị chặn", async () => {
     for (const key of ["code", "attending", "count", "events", "updatedAt"]) {
-      const data = validRsvp();
-      delete data[key];
-      await assertFails(put(data), `thiếu ${key}`);
+      await bad({}, [key]);
     }
   });
   test("name phải là string nếu có", async () => {
-    await assertSucceeds(put(validRsvp({ name: "Anh Minh" })));
-    await assertFails(put(validRsvp({ name: 42 })));
+    await ok({ name: "Anh Minh" });
+    await bad({ name: 42 });
   });
   test("name ≤ 60", async () => {
-    await assertSucceeds(put(validRsvp({ name: "n".repeat(60) })));
-    await assertFails(put(validRsvp({ name: "n".repeat(61) })));
+    await ok({ name: "n".repeat(60) });
+    await bad({ name: "n".repeat(61) });
   });
-  test("events ≤ 10 phần tử, mọi phần tử là string", async () => {
+  test("events ≤ 10 phần tử, mọi phần tử là string ≤ 50", async () => {
     const ten = Array.from({ length: 10 }, (_, i) => `e${i}`);
-    await assertSucceeds(put(validRsvp({ events: ten })));
-    await assertSucceeds(put(validRsvp({ events: [] })));
-    await assertFails(put(validRsvp({ events: [...ten, "e10"] })));
-    await assertFails(put(validRsvp({ events: ["ceremony", 5] })));
-    await assertFails(put(validRsvp({ events: [null] })));
+    await ok({ events: ten });
+    await ok({ events: [] });
+    await ok({ events: ["e".repeat(50)] });
+    await bad({ events: [...ten, "e10"] });
+    await bad({ events: ["ceremony", 5] });
+    await bad({ events: [null] });
+    await bad({ events: ["e".repeat(51)] });
+    await bad({ events: ["ok", "ok", "ok", "ok", "ok", "ok", "ok", "ok", "ok", "e".repeat(51)] });
   });
   test("field lạ bị chặn", async () => {
-    await assertFails(put(validRsvp({ isAdmin: true })));
+    await bad({ isAdmin: true });
   });
 });
 
@@ -278,6 +325,16 @@ describe("khách: wishes", () => {
     await assertSucceeds(add(validWish({ name: "n".repeat(60), message: "m".repeat(500) })));
     await assertFails(add(validWish({ name: "n".repeat(61) })));
     await assertFails(add(validWish({ message: "m".repeat(501) })));
+  });
+  test("createdAt phải == request.time (serverTimestamp)", async () => {
+    await assertSucceeds(add(validWish({ createdAt: serverTimestamp() })));
+    await assertFails(add(validWish({ createdAt: Timestamp.now() })));
+    await assertFails(add(validWish({ createdAt: Timestamp.fromMillis(Date.now() + 86_400_000) })));
+  });
+  test("name và message không rỗng", async () => {
+    await assertFails(add(validWish({ name: "" })));
+    await assertFails(add(validWish({ message: "" })));
+    await assertSucceeds(add(validWish({ name: "n", message: "m" })));
   });
   test("kiểu sai và field thiếu/lạ bị chặn", async () => {
     await assertFails(add(validWish({ name: 1 })));
@@ -364,7 +421,7 @@ describe("người đăng nhập chưa duyệt", () => {
   test("vẫn là khách: tạo/sửa rsvp, đọc và tạo wishes", async () => {
     const db = pendingUser();
     await assertSucceeds(setDoc(doc(db, "rsvp", GUEST_CODE), validRsvp({ count: 3 })));
-    await assertSucceeds(updateDoc(doc(db, "rsvp", GUEST_CODE), { count: 4 }));
+    await assertSucceeds(updateDoc(doc(db, "rsvp", GUEST_CODE), { count: 4, updatedAt: serverTimestamp() }));
     await assertSucceeds(addDoc(collection(db, "rsvp"), walkInRsvp()));
     await assertSucceeds(getDocs(collection(db, "wishes")));
     await assertSucceeds(addDoc(collection(db, "wishes"), validWish()));
@@ -428,6 +485,19 @@ for (const [label, ctx] of Object.entries(admins)) {
       await assertSucceeds(deleteDoc(doc(db, "wishes", "w1")));
       await assertSucceeds(deleteDoc(doc(db, "guests", GUEST_CODE)));
     });
+    test("ghi rsvp sai shape vẫn được (admin không bị validate)", async () => {
+      const db = ctx();
+      await assertSucceeds(setDoc(doc(db, "rsvp", GUEST_CODE), { count: 99, extra: true }));
+      await assertSucceeds(setDoc(doc(db, "rsvp", "adminCreated"), { whatever: 1 }));
+      await assertSucceeds(addDoc(collection(db, "wishes"), { name: "", message: "" }));
+    });
+    test("collection ngoài 4 collection của C5 bị chặn", async () => {
+      const db = ctx();
+      await assertFails(setDoc(doc(db, "settings", "x"), { a: 1 }));
+      await assertFails(getDoc(doc(db, "settings", "x")));
+      await assertFails(getDocs(collection(db, "settings")));
+      await assertFails(addDoc(collection(db, "other"), { a: 1 }));
+    });
     test("duyệt/từ chối yêu cầu, tạo tài khoản mật khẩu", async () => {
       const db = ctx();
       await assertSucceeds(updateDoc(doc(db, "accessRequests", "pendingUid"),
@@ -440,6 +510,15 @@ for (const [label, ctx] of Object.entries(admins)) {
     });
   });
 }
+
+describe("admin approved nhưng mustChangePassword = true", () => {
+  test("vẫn là admin (mustChangePassword chỉ là chốt chặn giao diện)", async () => {
+    const db = approvedForcedAdmin();
+    await assertSucceeds(getDocs(collection(db, "guests")));
+    await assertSucceeds(getDocs(collection(db, "accessRequests")));
+    await assertSucceeds(updateDoc(doc(db, "accessRequests", "pendingUid"), { status: "approved" }));
+  });
+});
 
 describe("không phải super admin", () => {
   test("Google phucanhdn01@gmail.com với email_verified=false", async () => {

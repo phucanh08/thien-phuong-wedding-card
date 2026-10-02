@@ -261,6 +261,54 @@ body {
   background: #fff;
 }
 
+/* Xác nhận & lời chúc */
+.source-badge { font-weight: 500; }
+.source-guest { background: #e3ecf8; color: #2c4a72; }
+.source-public { background: #efeaf6; color: #5a3f7a; }
+.source-deleted { background: #fde8e4; color: #9a3a26; }
+.rsvp-item.is-duplicate { background: #fff8f8; border-style: dashed; }
+.note-text,
+.wish-message { white-space: pre-wrap; overflow-wrap: anywhere; }
+.wish-message { margin: .15rem 0 .25rem; }
+
+/* Thống kê */
+.stats-days { display: flex; flex-direction: column; gap: 1.5rem; }
+.stats-day-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .25rem .75rem;
+  margin-bottom: .6rem;
+}
+.stats-day-tables { font-weight: 600; color: var(--rose-dark); }
+.stats-events {
+  display: grid;
+  gap: .75rem;
+}
+@media (min-width: 768px) {
+  .stats-events { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.stats-event { border-color: #eee4e7; border-radius: .75rem; }
+.stats-day-total { margin-top: .75rem; background: var(--rose-soft); }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem 1rem;
+}
+.stat-tables {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: .85rem;
+  padding-top: .75rem;
+  border-top: 1px solid #eee4e7;
+}
+.stat-value { font-size: 1.25rem; font-weight: 600; line-height: 1.2; }
+.stat-tables .stat-value { font-size: 1.6rem; color: var(--rose-dark); }
+.stat-label { font-size: .8rem; color: #6c6368; }
+.stat-sub { font-size: .75rem; color: #8a7f83; overflow-wrap: anywhere; }
+
 .toast-msg {
   position: fixed;
   left: 50%;

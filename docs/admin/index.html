@@ -248,14 +248,39 @@
 
         <div class="toast-msg" id="toast" role="status" aria-live="polite" hidden></div>
 
+        <div class="alert py-2 small" id="responses-error" role="alert" hidden></div>
+
         <section data-panel="xac-nhan" hidden>
           <h2 class="h4 mb-3">Xác nhận &amp; lời chúc</h2>
-          <div class="card placeholder-card"><div class="card-body text-secondary">Xác nhận tham dự và lời chúc của khách sẽ có ở bước tiếp theo.</div></div>
+
+          <h3 class="h6 mb-2">Xác nhận tham dự</h3>
+          <div class="guest-filters mb-2">
+            <input type="search" id="rsvp-search" class="form-control" placeholder="Tìm theo tên hoặc mã…" aria-label="Tìm xác nhận theo tên">
+            <select id="rsvp-filter" class="form-select" aria-label="Lọc xác nhận">
+              <option value="">Tất cả</option>
+              <option value="yes">Đi</option>
+              <option value="no">Không đi</option>
+              <option value="maybe">Chưa chắc</option>
+              <option value="guest">Khách có mã</option>
+              <option value="public">Khách link chung</option>
+              <option value="deleted">Khách đã xoá</option>
+              <option value="duplicate">Trùng tên</option>
+            </select>
+          </div>
+          <div class="small text-secondary mb-2" id="rsvp-count"></div>
+          <div id="rsvp-list" class="request-list mb-4"></div>
+
+          <h3 class="h6 mb-2">Sổ lời chúc</h3>
+          <input type="search" id="wish-search" class="form-control mb-2" placeholder="Tìm trong lời chúc…" aria-label="Tìm lời chúc">
+          <div class="small text-secondary mb-2" id="wish-count"></div>
+          <div id="wish-list" class="request-list"></div>
         </section>
 
         <section data-panel="thong-ke" hidden>
-          <h2 class="h4 mb-3">Thống kê</h2>
-          <div class="card placeholder-card"><div class="card-body text-secondary">Thống kê số khách và số mâm sẽ có ở bước tiếp theo.</div></div>
+          <h2 class="h4 mb-2">Thống kê</h2>
+          <p class="small text-secondary mb-3" id="stats-summary"></p>
+          <div id="stats-days" class="stats-days"></div>
+          <p class="small text-secondary mt-3 mb-0" id="stats-note"></p>
         </section>
 
         <section data-panel="quan-tri" hidden>

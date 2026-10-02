@@ -21,14 +21,23 @@ npm run dev            # web ở :8080 (đổi bằng PORT=8162), emulator proje
 Ở localhost/127.0.0.1 thiệp và admin tự nối emulator, không chạm Firebase thật. Firebase web config và
 port emulator chỉ khai ở `docs/firebase-shared.js` (port phải khớp `firebase.json`).
 
-Máy dev là Apple Silicon không có Rosetta: `node`, `npx`, `gh`, python của pyenv đều là bản x86_64
-và báo "bad CPU type". Dùng `/usr/bin/python3`, `/usr/bin/ruby`, `sips`, `git`, `curl`.
+Kiểm tra:
+
+```bash
+npm test               # rules Firestore trên emulator (cổng 8282)
+npm run test:unit      # unit test trang quản lý (node --test, không cần emulator)
+```
+
+Máy dev là Apple Silicon **đã cài Rosetta** (2026-10-02): `node`, `npx`, `firebase`, `wrangler`, `gh` là
+bản x86_64 và chạy bình thường. Phục vụ web tĩnh vẫn dùng `/usr/bin/python3`.
 
 ## Cấu trúc đích
 
-- `docs/index.html` — trang duy nhất, **không minify** (dễ sửa).
-- `docs/wedding-data.js` — **nguồn nội dung duy nhất**: tên, gia đình, sự kiện, ngân hàng, album,
-  chuyện tình, nhạc. Markup đọc từ đây; không hard-code nội dung trong `index.html`.
+- `docs/index.html` — chỉ chuyển hướng sang phiên bản mặc định (`DEFAULT_VERSION`), giữ `?code=`.
+- `docs/v1/index.html` (template135) và `docs/v2/` (mẫu "Nhà Có Hỷ") — hai phiên bản thiệp,
+  **không minify**; dùng chung `docs/content-loader.js` để lấy nội dung.
+- `docs/wedding-data.js` — nội dung dự phòng (C6): tên, gia đình, sự kiện, ngân hàng, album,
+  chuyện tình, nhạc. Markup đọc từ dữ liệu; không hard-code nội dung trong HTML.
 - `docs/firebase-config.js` — cấu hình Firestore (`guests`, `rsvp`, `wishes`).
 - `docs/assets/` — ảnh `.webp`/placeholder, nhạc.
 

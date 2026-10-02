@@ -2,7 +2,7 @@
 // lịch sử và khôi phục. Dữ liệu người dùng chỉ đưa vào DOM bằng textContent / value.
 // Sửa trực tiếp trên một bản sao của data nên field không có ô sửa (field lạ, video...) giữ nguyên.
 import { createContentStore, UNKNOWN_PUBLISHED } from "./content-store.js";
-import { createPreview } from "./content-preview.js";
+import { createPreview, previewTargets } from "./content-preview.js";
 import {
   validateContent, getPath, setPath, splitISO, joinISO, albumShown, setAlbumShown, galleryCountText, replaceGalleryImage,
 } from "./content-model.js";
@@ -237,6 +237,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
 
   function fieldShell(parent, label, hint, id, path) {
     const wrap = el("div", "content-field");
+    if (path) wrap.dataset.field = path;
     const labelEl = el("label", "form-label", label);
     if (id) labelEl.htmlFor = id;
     const head = el("div", "content-field-head");
@@ -524,8 +525,11 @@ export function createContentSection({ db, getUser, getIdToken }) {
     card.addEventListener("toggle", () => {
       if (card.open) followSection(key);
     });
-    // Sửa ô nào thì bản xem trước cuộn tới phần đó trên thiệp.
-    card.addEventListener("focusin", () => followSection(key));
+    // Sửa ô nào thì bản xem trước cuộn tới đúng chỗ hiện ô đó trên thiệp. Bấm "Xem phần này" (nút nhận
+    // focus trên Chrome) không xoá ô vừa sửa: nút tự đưa khung tới chỗ của ô đó.
+    card.addEventListener("focusin", (event) => {
+      if (!event.target.closest(".content-where")) followSection(key, fieldPath(event.target));
+    });
     parent.append(card);
     return body;
   }
@@ -865,23 +869,39 @@ export function createContentSection({ db, getUser, getIdToken }) {
 
   // ---------- Xem trước ----------
 
+  // Ô của một trường: ô nhập có data-path; nút/ô phụ (chọn màu, giờ, "Tải ảnh mới…") theo khung của trường;
+  // nút trong một mốc/ảnh album theo ô đầu tiên của mốc/ảnh đó.
+  function fieldPath(node) {
+    return node.closest("[data-path]")?.dataset.path
+      || node.closest("[data-field]")?.dataset.field
+      || node.closest(".content-group, .content-gallery-item")?.querySelector("[data-path]")?.dataset.path
+      || null;
+  }
+
+  // "Xem phần này": tới chỗ của ô vừa bấm trong mục này (không có thì neo của mục).
   function showInPreview(key) {
     if (!preview) return;
     $("content-preview-pane").classList.add("is-open");
-    if (preview.canScroll) lastFollowed = key;
-    preview.scrollTo(key);
+    const path = editing?.key === key ? editing.path : null;
+    if (preview.canScroll) lastFollowed = followKey(key, path);
+    preview.scrollTo(key, path);
   }
 
   // Khung xem trước chưa cuộn được (chưa vẽ xong lần đầu, hoặc lớp xem trước trên điện thoại đang đóng)
-  // thì chỉ nhớ mục đang sửa, chưa ghi nhận đã cuộn: lần focus sau trong cùng mục, hay lúc mở lớp xem
-  // trước, vẫn cuộn tới mục đó (mục mở sẵn khi vào trang báo toggle lúc khung còn trống).
-  let editingSection = null;
+  // thì chỉ nhớ ô đang sửa, chưa ghi nhận đã cuộn: lần focus sau, hay lúc mở lớp xem trước, vẫn cuộn tới
+  // chỗ đó (mục mở sẵn khi vào trang báo toggle lúc khung còn trống). Ô mới cùng chỗ với ô trước (vd. ngày
+  // và giờ của một sự kiện) thì không cuộn lại, để người sửa tự lăn khung đi đâu thì khung ở đó.
+  let editing = null;
   let lastFollowed = null;
-  function followSection(key) {
-    editingSection = key;
-    if (!preview || !preview.canScroll || key === lastFollowed) return;
-    lastFollowed = key;
-    preview.scrollTo(key);
+  function followKey(key, path) {
+    return JSON.stringify(previewTargets(key, path, state.data));
+  }
+  function followSection(key, path = null) {
+    editing = { key, path };
+    const where = followKey(key, path);
+    if (!preview || !preview.canScroll || where === lastFollowed) return;
+    lastFollowed = where;
+    preview.scrollTo(key, path);
   }
 
   function previewState({ state: s, source, message }) {
@@ -1105,7 +1125,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
     $("btn-content-preview").addEventListener("click", () => {
       $("content-preview-pane").classList.add("is-open");
       lastFollowed = null;
-      if (editingSection) followSection(editingSection);
+      if (editing) followSection(editing.key, editing.path);
     });
     $("btn-content-preview-close").addEventListener("click", () => $("content-preview-pane").classList.remove("is-open"));
     $("btn-content-history-back").addEventListener("click", () => {

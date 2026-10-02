@@ -1,5 +1,5 @@
-// Thiệp v2 (mẫu "Nhà Có Hỷ"): vẽ nội dung + hiệu ứng. Phần dữ liệu khách (chào tên ?code=, RSVP,
-// sổ lời chúc, thêm lịch, chụm ảnh, nút X lightbox) thuộc V2b và chưa nối ở đây.
+// Thiệp v2 (mẫu "Nhà Có Hỷ"): vẽ nội dung + hiệu ứng, chào tên khách ?code=, xác nhận tham dự và sổ
+// lời chúc (Firestore qua firebase-config.js dùng chung với v1). Thêm lịch, chụm ảnh, nút X lightbox: V2b2.
 // Dữ liệu chỉ đưa vào DOM bằng textContent / thuộc tính, không innerHTML.
 import { loadWeddingContent } from '../content-loader.js';
 
@@ -661,11 +661,257 @@ function flyPhotoToBanner() {
 
 document.getElementById('v2-envelope-open').addEventListener('click', openEnvelope);
 
-// Dock: chỉ thu gọn/mở lại ở V2a; các nút hành động được V2b nối
 dock.querySelector('.v2-dock__switch').addEventListener('click', event => {
     const collapsed = dock.classList.toggle('is-collapsed');
     event.currentTarget.setAttribute('aria-expanded', String(!collapsed));
     event.currentTarget.setAttribute('aria-label', collapsed ? 'Mở thanh hành động' : 'Thu gọn');
+});
+
+// ===== Bottom sheet (sổ lời chúc, xác nhận tham dự) =====
+const sheetBackdrop = document.getElementById('v2-sheet-backdrop');
+let openSheetEl = null;
+let sheetOpener = null;
+
+function openSheet(sheet) {
+    if (openSheetEl === sheet) return;
+    if (openSheetEl) closeSheet(true);
+    stopAutoScroll();
+    openSheetEl = sheet;
+    sheetOpener = document.activeElement;
+    sheetBackdrop.hidden = false;
+    sheet.hidden = false;
+    document.documentElement.classList.add('v2-sheet-open');
+    sheet.getBoundingClientRect();
+    sheetBackdrop.classList.add('is-open');
+    sheet.classList.add('is-open');
+    sheet.focus({ preventScroll: true });
+    if (sheet === guestbook) scrollWishesToEnd();
+}
+
+function closeSheet(instant) {
+    const sheet = openSheetEl;
+    if (!sheet) return;
+    openSheetEl = null;
+    sheet.classList.remove('is-open');
+    sheetBackdrop.classList.remove('is-open');
+    document.documentElement.classList.remove('v2-sheet-open');
+    const hide = () => {
+        if (openSheetEl === sheet) return;
+        sheet.hidden = true;
+        if (!openSheetEl) sheetBackdrop.hidden = true;
+    };
+    if (instant || reducedMotion) hide(); else setTimeout(hide, 320);
+    if (sheetOpener && sheetOpener.focus) sheetOpener.focus({ preventScroll: true });
+}
+
+sheetBackdrop.addEventListener('click', () => closeSheet());
+document.querySelectorAll('[data-sheet-close]').forEach(button => button.addEventListener('click', () => closeSheet()));
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && openSheetEl) closeSheet();
+});
+dock.querySelector('[data-action="guestbook"]').addEventListener('click', () => openSheet(guestbook));
+dock.querySelector('[data-action="rsvp"]').addEventListener('click', () => openSheet(rsvpSheet));
+
+function setStatus(node, state, text) {
+    node.dataset.state = state;
+    node.textContent = text;
+}
+
+// ===== Khách theo ?code=, gửi RSVP / lời chúc (firebase-config.js phát wedding:guest, wedding:wishes) =====
+const NAME_MAX = 60;
+const MESSAGE_MAX = 500;
+const COUNT_MAX = 20;
+const OFFLINE_TEXT = 'Chưa kết nối được, bạn vui lòng thử lại sau ít phút nhé!';
+let guest = null;
+
+function guestFullName(g) {
+    return g ? [g.salutation, g.name].filter(Boolean).join(' ').trim() : '';
+}
+
+function prefillName(input, g) {
+    if (g && g.name && !input.value.trim()) input.value = String(g.name).slice(0, NAME_MAX);
+}
+
+function applyGuest(g) {
+    guest = g || null;
+    const fullName = guestFullName(guest);
+    if (fullName) document.querySelectorAll('[data-guest-name]').forEach(node => { node.textContent = fullName; });
+    prefillName(rsvpForm.elements.namedItem('name'), guest);
+    prefillName(wishForm.elements.namedItem('name'), guest);
+    const expected = guest && Number(guest.expectedCount);
+    if (Number.isInteger(expected) && expected >= 1) countInput.value = String(Math.min(expected, COUNT_MAX));
+    applyInvites();
+    updateRsvpSubmit();
+    updateWishSubmit();
+}
+
+// --- Xác nhận tham dự ---
+const rsvpSheet = document.getElementById('v2-rsvp');
+const rsvpForm = rsvpSheet.querySelector('[data-rsvp-form]');
+const rsvpEvents = rsvpForm.querySelector('[data-rsvp-events]');
+const rsvpCount = rsvpForm.querySelector('[data-rsvp-count]');
+const countInput = rsvpForm.elements.namedItem('count');
+const rsvpSubmit = rsvpForm.querySelector('[type="submit"]');
+const rsvpStatus = rsvpForm.querySelector('[data-rsvp-status]');
+let rsvpSending = false;
+
+function renderRsvpContent(D) {
+    const deadline = rsvpForm.querySelector('[data-rsvp-deadline]');
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(D.wedding.rsvpDeadline || '');
+    deadline.textContent = m ? `Vui lòng phản hồi trước ngày ${m[3]}.${m[2]}.${m[1]} để chúng tôi kịp chuẩn bị chu đáo.` : '';
+    deadline.hidden = !m;
+
+    rsvpForm.querySelector('[data-rsvp-event-list]').replaceChildren(...D.events.map(event => {
+        const label = el('label', 'v2-choice v2-choice--check');
+        const input = el('input');
+        input.type = 'checkbox';
+        input.name = 'events';
+        input.value = event.key;
+        label.append(input, el('span', null, event.title));
+        return label;
+    }));
+    applyInvites();
+    updateRsvpSubmit();
+}
+
+function eventInputs() {
+    return [...rsvpForm.querySelectorAll('input[name="events"]')];
+}
+
+// Khách có code: chỉ hiện lễ được mời, chọn sẵn. Danh sách không khớp lễ nào (dữ liệu sai) thì hiện tất cả như v1.
+function applyInvites() {
+    const invited = guest && Array.isArray(guest.invitedEvents) ? guest.invitedEvents : [];
+    const inputs = eventInputs();
+    if (!inputs.some(input => invited.includes(input.value))) return;
+    inputs.forEach(input => {
+        input.checked = invited.includes(input.value);
+        input.closest('label').hidden = !input.checked;
+    });
+}
+
+function rsvpInput() {
+    const attending = (rsvpForm.querySelector('input[name="attending"]:checked') || {}).value || '';
+    const count = Number(countInput.value);
+    const events = eventInputs().filter(input => input.checked && !input.closest('label').hidden).map(input => input.value);
+    return { name: rsvpForm.elements.namedItem('name').value.trim(), attending, count, events };
+}
+
+function updateRsvpSubmit() {
+    const { name, attending, count, events } = rsvpInput();
+    const hasEvents = eventInputs().some(input => !input.closest('label').hidden);
+    rsvpEvents.hidden = !hasEvents || !(attending === 'yes' || attending === 'maybe');
+    rsvpCount.hidden = attending !== 'yes';
+    const valid = name.length > 0 && name.length <= NAME_MAX && Boolean(attending)
+        && (attending !== 'yes' || (Number.isInteger(count) && count >= 1 && count <= COUNT_MAX && (!hasEvents || events.length > 0)));
+    rsvpSubmit.disabled = rsvpSending || !valid;
+}
+
+rsvpForm.addEventListener('click', event => {
+    const step = event.target.closest('[data-step]');
+    if (!step) return;
+    const current = Number(countInput.value);
+    const next = (Number.isInteger(current) ? current : 1) + Number(step.dataset.step);
+    countInput.value = String(Math.min(COUNT_MAX, Math.max(1, next)));
+    countInput.dispatchEvent(new Event('input', { bubbles: true }));
+});
+rsvpForm.addEventListener('input', () => {
+    if (!rsvpSending) setStatus(rsvpStatus, '', '');
+    updateRsvpSubmit();
+});
+rsvpForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (rsvpSubmit.disabled) return;
+    const firestore = await firestoreReady;
+    if (!firestore) return setStatus(rsvpStatus, 'error', OFFLINE_TEXT);
+    const input = rsvpInput();
+    rsvpSending = true;
+    updateRsvpSubmit();
+    setStatus(rsvpStatus, 'pending', 'Đang gửi…');
+    const result = await firestore.sendRsvp(input);
+    rsvpSending = false;
+    setStatus(rsvpStatus, result.ok ? 'success' : 'error', result.message);
+    updateRsvpSubmit();
+});
+
+// --- Sổ lời chúc ---
+const guestbook = document.getElementById('v2-guestbook');
+const wishForm = guestbook.querySelector('[data-wish-form]');
+const wishList = guestbook.querySelector('[data-wish-list]');
+const wishSubmit = wishForm.querySelector('[type="submit"]');
+const wishStatus = wishForm.querySelector('[data-wish-status]');
+const wishNodes = new Map();
+let wishesLoaded = false;
+let wishSending = false;
+
+function scrollWishesToEnd() {
+    wishList.scrollTop = wishList.scrollHeight;
+}
+
+// detail: mới nhất trước, tối đa WISHES_SHOWN. Hiện kiểu chat: cũ ở trên, mới ở dưới; lời chúc mới trượt vào.
+async function renderWishes(wishes) {
+    const firestore = await firestoreReady;
+    const max = firestore ? firestore.WISHES_SHOWN : Infinity;
+    const atEnd = wishList.scrollHeight - wishList.scrollTop - wishList.clientHeight < 40;
+    const nodes = [...wishes].reverse().map(wish => {
+        let item = wishNodes.get(wish.id);
+        if (!item) {
+            item = el('li', 'v2-wish' + (wishesLoaded ? ' is-new' : ''));
+            item.append(el('p', 'v2-wish__name', wish.name), el('p', 'v2-wish__message', wish.message));
+            wishNodes.set(wish.id, item);
+        }
+        return item;
+    });
+    const keep = new Set(wishes.map(wish => wish.id));
+    [...wishNodes.keys()].forEach(id => { if (!keep.has(id)) wishNodes.delete(id); });
+    wishList.replaceChildren(...nodes);
+    wishesLoaded = true;
+
+    const count = wishes.length >= max ? `${max}+` : String(wishes.length);
+    guestbook.querySelector('[data-wish-title]').textContent = `${count} Lời chúc`;
+    guestbook.querySelector('[data-wish-empty]').hidden = wishes.length > 0;
+    const badge = dock.querySelector('[data-wish-count]');
+    badge.textContent = count;
+    badge.hidden = wishes.length === 0;
+    if (atEnd || !openSheetEl) scrollWishesToEnd();
+}
+
+function updateWishSubmit() {
+    const name = wishForm.elements.namedItem('name').value;
+    const message = wishForm.elements.namedItem('message').value;
+    const valid = name.trim().length > 0 && name.length <= NAME_MAX && message.trim().length > 0 && message.length <= MESSAGE_MAX;
+    wishSubmit.disabled = wishSending || !valid;
+}
+
+wishForm.addEventListener('input', () => {
+    if (!wishSending) setStatus(wishStatus, '', '');
+    updateWishSubmit();
+});
+wishForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (wishSubmit.disabled) return;
+    const firestore = await firestoreReady;
+    if (!firestore) return setStatus(wishStatus, 'error', OFFLINE_TEXT);
+    const messageInput = wishForm.elements.namedItem('message');
+    wishSending = true;
+    updateWishSubmit();
+    setStatus(wishStatus, 'pending', 'Đang gửi…');
+    const result = await firestore.sendWish({ name: wishForm.elements.namedItem('name').value, message: messageInput.value });
+    wishSending = false;
+    if (result.ok) {
+        messageInput.value = '';
+        scrollWishesToEnd();
+    }
+    setStatus(wishStatus, result.ok ? 'success' : 'error', result.message);
+    updateWishSubmit();
+});
+
+// Nghe trước khi nạp module để không lỡ sự kiện đầu. Module lỗi (mất mạng, CDN) thì thiệp vẫn chạy,
+// chỉ RSVP / lời chúc báo chưa kết nối.
+document.addEventListener('wedding:guest', event => applyGuest(event.detail));
+document.addEventListener('wedding:wishes', event => renderWishes(event.detail));
+const firestoreReady = import('../firebase-config.js').catch(error => {
+    console.warn('Không nạp được Firestore, tắt RSVP / lời chúc:', error);
+    return null;
 });
 
 // ===== Khởi động =====
@@ -677,6 +923,7 @@ const contentReady = (async () => {
         applyMeta(data);
         setGalleryData(data.gallery);
         render(data);
+        renderRsvpContent(data);
     } catch (error) {
         console.error('Không vẽ được thiệp:', error);
     }

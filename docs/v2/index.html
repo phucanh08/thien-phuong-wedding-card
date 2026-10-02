@@ -54,7 +54,7 @@
         <img class="v2-envelope__firework v2-envelope__firework--bottom" src="v2/assets/firework.webp" alt="" aria-hidden="true">
         <div class="v2-envelope__intro">
             <p class="v2-envelope__label">Trân trọng kính mời</p>
-            <!-- V2b: tên khách theo ?code= điền vào mọi [data-guest-name] -->
+            <!-- Tên khách theo ?code= điền vào mọi [data-guest-name] (v2.js); không có thì giữ "Quý Khách" -->
             <p class="v2-envelope__guest" data-guest-name>Quý Khách</p>
             <p class="v2-envelope__message">Đến dự buổi tiệc chung vui cùng gia đình</p>
         </div>
@@ -231,8 +231,7 @@
     </main>
 
     <!-- ===== Dock hành động (đáy, bám cột 500px) =====
-         V2b nối: ô "Gửi lời chúc" mở sổ lời chúc (lời chúc ≤ 500 ký tự), badge đếm lời chúc,
-         nút RSVP mở sheet xác nhận tham dự (3 lựa chọn yes/maybe/no theo C5, hạn wedding.rsvpDeadline). -->
+         Ô "Gửi lời chúc" mở sổ lời chúc, badge đếm lời chúc; nút RSVP mở sheet xác nhận tham dự. -->
     <div class="v2-dock" id="v2-dock" hidden>
         <div class="v2-dock__items">
             <button type="button" class="v2-dock__wish" data-action="guestbook">
@@ -251,6 +250,64 @@
             <svg class="v2-dock__icon-menu" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </button>
     </div>
+
+    <!-- ===== Bottom sheet: sổ lời chúc + xác nhận tham dự (ghi Firestore qua firebase-config.js, C5) ===== -->
+    <div class="v2-sheet-backdrop" id="v2-sheet-backdrop" hidden></div>
+
+    <section class="v2-sheet v2-guestbook" id="v2-guestbook" role="dialog" aria-modal="true" aria-labelledby="v2-guestbook-title" tabindex="-1" hidden>
+        <span class="v2-sheet__handle" aria-hidden="true"></span>
+        <header class="v2-sheet__header">
+            <h2 class="v2-sheet__title" id="v2-guestbook-title" data-wish-title>Lời chúc</h2>
+            <button type="button" class="v2-sheet__close" data-sheet-close aria-label="Đóng">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            </button>
+        </header>
+        <ol class="v2-guestbook__list" data-wish-list></ol>
+        <p class="v2-guestbook__empty" data-wish-empty>Hãy là người đầu tiên gửi lời chúc nhé!</p>
+        <form class="v2-sheet__form v2-guestbook__form" data-wish-form novalidate>
+            <input class="v2-field" name="name" type="text" maxlength="60" autocomplete="name" placeholder="Nhập tên của bạn" aria-label="Tên của bạn">
+            <textarea class="v2-field v2-field--message" name="message" rows="2" maxlength="500" placeholder="Gửi lời chúc" aria-label="Lời chúc (tối đa 500 ký tự)"></textarea>
+            <p class="v2-sheet__status" data-wish-status role="status"></p>
+            <button type="submit" class="v2-sheet__submit" disabled>Gửi lời chúc</button>
+        </form>
+    </section>
+
+    <section class="v2-sheet v2-rsvp" id="v2-rsvp" role="dialog" aria-modal="true" aria-labelledby="v2-rsvp-title" tabindex="-1" hidden>
+        <span class="v2-sheet__handle" aria-hidden="true"></span>
+        <header class="v2-sheet__header v2-sheet__header--center">
+            <h2 class="v2-sheet__title" id="v2-rsvp-title">Xác nhận tham dự</h2>
+            <button type="button" class="v2-sheet__close" data-sheet-close aria-label="Đóng">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            </button>
+        </header>
+        <form class="v2-sheet__form v2-rsvp__form" data-rsvp-form novalidate>
+            <!-- Có wedding.rsvpDeadline mới hiện -->
+            <p class="v2-rsvp__deadline" data-rsvp-deadline hidden></p>
+            <label class="v2-rsvp__label" for="v2-rsvp-name">Tên của bạn *</label>
+            <input class="v2-field" id="v2-rsvp-name" name="name" type="text" maxlength="60" autocomplete="name" placeholder="Họ và tên khách mời">
+            <fieldset class="v2-rsvp__group">
+                <legend class="v2-rsvp__label">Bạn sẽ tham gia chứ?</legend>
+                <label class="v2-choice v2-choice--radio"><input type="radio" name="attending" value="yes"><span>Tham gia được</span></label>
+                <label class="v2-choice v2-choice--radio"><input type="radio" name="attending" value="maybe"><span>Chưa chắc chắn</span></label>
+                <label class="v2-choice v2-choice--radio"><input type="radio" name="attending" value="no"><span>Rất tiếc, tôi không thể đến</span></label>
+            </fieldset>
+            <!-- Lễ khách được mời (khách có code) hoặc mọi lễ (link chung); hiện khi tham gia / chưa chắc -->
+            <fieldset class="v2-rsvp__group" data-rsvp-events hidden>
+                <legend class="v2-rsvp__label">Bạn sẽ tham dự lễ nào?</legend>
+                <div class="v2-rsvp__events" data-rsvp-event-list></div>
+            </fieldset>
+            <div class="v2-rsvp__group v2-rsvp__count" data-rsvp-count hidden>
+                <label class="v2-rsvp__label" for="v2-rsvp-count">Số người tham dự</label>
+                <div class="v2-stepper">
+                    <button type="button" class="v2-stepper__button" data-step="-1" aria-label="Bớt một người">&minus;</button>
+                    <input class="v2-stepper__input" id="v2-rsvp-count" name="count" type="number" inputmode="numeric" min="1" max="20" step="1" value="1">
+                    <button type="button" class="v2-stepper__button" data-step="+1" aria-label="Thêm một người">+</button>
+                </div>
+            </div>
+            <p class="v2-sheet__status" data-rsvp-status role="status"></p>
+            <button type="submit" class="v2-sheet__submit v2-sheet__submit--strong" disabled>Xác nhận</button>
+        </form>
+    </section>
 
     <script type="module" src="v2/v2.js"></script>
 </body>

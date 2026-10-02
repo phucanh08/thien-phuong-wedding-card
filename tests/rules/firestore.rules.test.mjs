@@ -245,6 +245,18 @@ describe("khách: validate rsvp", () => {
     await assertSucceeds(put(validRsvp({ name: "Anh Minh" })));
     await assertFails(put(validRsvp({ name: 42 })));
   });
+  test("name ≤ 60", async () => {
+    await assertSucceeds(put(validRsvp({ name: "n".repeat(60) })));
+    await assertFails(put(validRsvp({ name: "n".repeat(61) })));
+  });
+  test("events ≤ 10 phần tử, mọi phần tử là string", async () => {
+    const ten = Array.from({ length: 10 }, (_, i) => `e${i}`);
+    await assertSucceeds(put(validRsvp({ events: ten })));
+    await assertSucceeds(put(validRsvp({ events: [] })));
+    await assertFails(put(validRsvp({ events: [...ten, "e10"] })));
+    await assertFails(put(validRsvp({ events: ["ceremony", 5] })));
+    await assertFails(put(validRsvp({ events: [null] })));
+  });
   test("field lạ bị chặn", async () => {
     await assertFails(put(validRsvp({ isAdmin: true })));
   });
@@ -297,6 +309,11 @@ describe("người đăng nhập chưa duyệt", () => {
     await assertSucceeds(setDoc(doc(db, "accessRequests", "pwUid"),
       pendingRequest("linh.2@thien-phuong-wedding.local", { provider: "password", username: "linh.2" })));
   });
+  test("displayName null được chấp nhận, kiểu khác bị chặn", async () => {
+    const ref = doc(newcomer(), "accessRequests", "newUid");
+    await assertSucceeds(setDoc(ref, pendingRequest("new@gmail.com", { displayName: null })));
+    await assertFails(setDoc(ref, pendingRequest("new@gmail.com", { displayName: 5 })));
+  });
   test("chặn tạo với status khác pending", async () => {
     for (const status of ["approved", "rejected"]) {
       await assertFails(setDoc(doc(newcomer(), "accessRequests", "newUid"),
@@ -339,19 +356,29 @@ describe("người đăng nhập chưa duyệt", () => {
   test("không xoá doc của mình", async () => {
     await assertFails(deleteDoc(doc(pendingUser(), "accessRequests", "pendingUid")));
   });
-  test("không đọc guests (get, list), rsvp, wishes", async () => {
+  test("vẫn là khách: get guests/{code} đúng code, không list guests", async () => {
     const db = pendingUser();
-    await assertFails(getDoc(doc(db, "guests", GUEST_CODE)));
+    await assertSucceeds(getDoc(doc(db, "guests", GUEST_CODE)));
     await assertFails(getDocs(collection(db, "guests")));
+  });
+  test("vẫn là khách: tạo/sửa rsvp, đọc và tạo wishes", async () => {
+    const db = pendingUser();
+    await assertSucceeds(setDoc(doc(db, "rsvp", GUEST_CODE), validRsvp({ count: 3 })));
+    await assertSucceeds(updateDoc(doc(db, "rsvp", GUEST_CODE), { count: 4 }));
+    await assertSucceeds(addDoc(collection(db, "rsvp"), walkInRsvp()));
+    await assertSucceeds(getDocs(collection(db, "wishes")));
+    await assertSucceeds(addDoc(collection(db, "wishes"), validWish()));
+  });
+  test("không đọc rsvp, accessRequests của người khác; không sửa/xoá wishes", async () => {
+    const db = pendingUser();
     await assertFails(getDoc(doc(db, "rsvp", GUEST_CODE)));
     await assertFails(getDocs(collection(db, "rsvp")));
-    await assertFails(getDocs(collection(db, "wishes")));
+    await assertFails(getDoc(doc(db, "accessRequests", "approvedUid")));
+    await assertFails(updateDoc(doc(db, "wishes", "w1"), { message: "đổi" }));
+    await assertFails(deleteDoc(doc(db, "wishes", "w1")));
   });
-  test("không ghi guests/rsvp/wishes", async () => {
-    const db = pendingUser();
-    await assertFails(setDoc(doc(db, "guests", MISSING_CODE), { name: "X" }));
-    await assertFails(setDoc(doc(db, "rsvp", GUEST_CODE), validRsvp()));
-    await assertFails(addDoc(collection(db, "wishes"), validWish()));
+  test("không ghi guests", async () => {
+    await assertFails(setDoc(doc(pendingUser(), "guests", MISSING_CODE), { name: "X" }));
   });
 });
 

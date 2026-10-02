@@ -10,9 +10,9 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Khách xem thiệp: không đăng nhập.
+    // Quyền khách áp dụng cho mọi request, đăng nhập hay không.
     function isGuest() {
-      return request.auth == null;
+      return true;
     }
 
     function isSuperAdmin() {
@@ -37,6 +37,15 @@ service cloud.firestore {
       return !(key in data) || data[key] is string;
     }
 
+    // Rules không có vòng lặp: events ≤ 10 nên duyệt từng chỉ số.
+    function allStrings(l) {
+      return (l.size() < 1 || l[0] is string) && (l.size() < 2 || l[1] is string)
+        && (l.size() < 3 || l[2] is string) && (l.size() < 4 || l[3] is string)
+        && (l.size() < 5 || l[4] is string) && (l.size() < 6 || l[5] is string)
+        && (l.size() < 7 || l[6] is string) && (l.size() < 8 || l[7] is string)
+        && (l.size() < 9 || l[8] is string) && (l.size() < 10 || l[9] is string);
+    }
+
     function guestExists(code) {
       return exists(/databases/$(database)/documents/guests/$(code));
     }
@@ -46,9 +55,10 @@ service cloud.firestore {
         && data.keys().hasOnly(["code", "name", "attending", "count", "events", "note", "updatedAt"])
         && (data.code == null || data.code is string)
         && optString(data, "name")
+        && (!("name" in data) || data.name.size() <= 60)
         && data.attending in ["yes", "no", "maybe"]
         && data.count is int && data.count >= 0 && data.count <= 20
-        && data.events is list
+        && data.events is list && data.events.size() <= 10 && allStrings(data.events)
         && (!("note" in data) || (data.note is string && data.note.size() <= 500))
         && data.updatedAt is timestamp;
     }
@@ -66,7 +76,7 @@ service cloud.firestore {
       return data.keys().hasAll(["email", "displayName", "provider", "status", "mustChangePassword", "requestedAt"])
         && data.keys().hasOnly(["email", "displayName", "provider", "username", "status", "mustChangePassword", "requestedAt"])
         && data.email is string && data.email == request.auth.token.email
-        && data.displayName is string
+        && (data.displayName == null || data.displayName is string)
         && data.provider in ["google", "password"]
         && (!("username" in data) || (data.provider == "password"
               && data.username is string && data.username.matches("[a-z0-9._-]{3,30}")))

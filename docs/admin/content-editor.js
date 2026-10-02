@@ -100,6 +100,10 @@ export function createContentSection({ db, getUser, getIdToken }) {
     dirty: false,
     busy: false,
     meta: { draft: null, published: null },
+    // updatedAt của bản published mà nội dung đang sửa dựa trên: chỉ đặt khi nạp và sau khi chính
+    // trình sửa này xuất bản/khôi phục. Làm mới trạng thái (sau Lưu nháp...) không được đổi mốc này,
+    // nếu không bản admin khác vừa xuất bản sẽ bị đè mà không cảnh báo.
+    basePublished: null,
     origin: null,
     viewingHistory: null,
   };
@@ -866,15 +870,20 @@ export function createContentSection({ db, getUser, getIdToken }) {
     }
   }
 
-  // updatedAt của bản published lúc trình sửa đọc lần gần nhất (null = chưa xuất bản).
-  function publishedStamp() {
-    return state.meta.published ? state.meta.published.updatedAt ?? null : null;
+  // Làm mới dòng trạng thái (nháp/bản khách đang thấy). Không đụng state.basePublished.
+  // Thao tác chính đã thành công thì lỗi ở bước này chỉ ghi chú thêm, không báo như thao tác hỏng.
+  async function refreshMeta() {
+    try {
+      const loaded = await store.load();
+      state.meta = { draft: loaded.draft, published: loaded.published };
+      return true;
+    } catch (error) {
+      console.warn("Không làm mới được trạng thái nội dung", error);
+      return false;
+    }
   }
 
-  async function refreshMeta() {
-    const loaded = await store.load();
-    state.meta = { draft: loaded.draft, published: loaded.published };
-  }
+  const REFRESH_NOTE = " (Chưa làm mới được dòng trạng thái; tải lại trang để xem.)";
 
   function saveDraft() {
     hideAlert();
@@ -883,9 +892,9 @@ export function createContentSection({ db, getUser, getIdToken }) {
       await store.saveDraft(state.data);
       state.dirty = false;
       state.origin = "draft";
-      await refreshMeta();
+      const refreshed = await refreshMeta();
       setStatus();
-      showAlert("Đã lưu nháp. Khách chưa thấy thay đổi cho tới khi xuất bản.", "success");
+      showAlert(`Đã lưu nháp. Khách chưa thấy thay đổi cho tới khi xuất bản.${refreshed ? "" : REFRESH_NOTE}`, "success");
     });
   }
 
@@ -894,12 +903,12 @@ export function createContentSection({ db, getUser, getIdToken }) {
     if (blockIfInvalid("xuất bản")) return;
     if (!confirm("Xuất bản nội dung này? Khách mở thiệp sẽ thấy ngay. Bản đang xuất bản được giữ trong Lịch sử.")) return;
     return withBusy(async () => {
-      await store.publish(state.data, publishedStamp());
+      state.basePublished = await store.publish(state.data, state.basePublished);
       state.dirty = false;
       state.origin = "draft";
-      await refreshMeta();
+      const refreshed = await refreshMeta();
       setStatus();
-      showAlert("Đã xuất bản. Khách mở thiệp sẽ thấy nội dung mới.", "success");
+      showAlert(`Đã xuất bản. Khách mở thiệp sẽ thấy nội dung mới.${refreshed ? "" : REFRESH_NOTE}`, "success");
     });
   }
 
@@ -948,16 +957,18 @@ export function createContentSection({ db, getUser, getIdToken }) {
     if (!confirm(`Khôi phục và xuất bản lại bản ${formatTime(item.publishedAt)}? Bản khách đang thấy được giữ trong Lịch sử.`)) return;
     dialog.close();
     return withBusy(async () => {
-      state.data = await store.restore(item.id, publishedStamp());
+      const restored = await store.restore(item.id, state.basePublished);
+      state.data = restored.data;
+      state.basePublished = restored.publishedStamp;
       state.dirty = false;
       state.origin = "draft";
       state.viewingHistory = null;
       $("content-history-view").hidden = true;
-      await refreshMeta();
+      const refreshed = await refreshMeta();
       renderForm();
       setStatus();
       preview.update(state.data, { immediate: true });
-      showAlert(`Đã khôi phục bản ${formatTime(item.publishedAt)} và xuất bản lại.`, "success");
+      showAlert(`Đã khôi phục bản ${formatTime(item.publishedAt)} và xuất bản lại.${refreshed ? "" : REFRESH_NOTE}`, "success");
     });
   }
 
@@ -1000,6 +1011,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
       state.data = loaded.data;
       state.origin = loaded.origin;
       state.meta = { draft: loaded.draft, published: loaded.published };
+      state.basePublished = loaded.published ? loaded.published.updatedAt ?? null : null;
       state.dirty = false;
       state.loaded = true;
       renderForm();
@@ -1026,7 +1038,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
       preview = null;
       lastFollowed = null;
       fields.clear();
-      Object.assign(state, { data: null, loaded: false, dirty: false, origin: null, viewingHistory: null });
+      Object.assign(state, { data: null, loaded: false, dirty: false, origin: null, viewingHistory: null, basePublished: null });
       if (document.getElementById("content-form")) $("content-form").replaceChildren();
     },
   };

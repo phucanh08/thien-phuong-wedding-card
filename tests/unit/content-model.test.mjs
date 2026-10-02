@@ -48,6 +48,14 @@ test("mỗi event cần key/title/startISO", () => {
   assert.deepEqual(paths(validateContent(d)), ["events.0.title", "events.0.startISO"]);
 });
 
+test("event thiếu key (rỗng hoặc không có) bị chặn", () => {
+  const d = sample();
+  d.events.push({ ...d.events[0] });
+  d.events[0].key = "";
+  delete d.events[1].key;
+  assert.deepEqual(paths(validateContent(d)), ["events.0.key", "events.1.key"]);
+});
+
 test("mapUrl javascript: bị chặn", () => {
   const d = sample();
   d.events[0].mapUrl = "javascript:alert(1)";

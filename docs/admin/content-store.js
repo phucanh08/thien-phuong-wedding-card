@@ -16,8 +16,13 @@ export class StalePublishError extends Error {
   }
 }
 
+// Mốc published không xác định được (vd đọc lại sau khi xuất bản thấy bản của người khác):
+// lần xuất bản sau luôn bị coi là cũ, buộc tải lại.
+export const UNKNOWN_PUBLISHED = Object.freeze({ unknown: true });
+
 // updatedAt của published: Timestamp, hoặc null khi chưa xuất bản lần nào.
 function sameStamp(a, b) {
+  if (a === UNKNOWN_PUBLISHED || b === UNKNOWN_PUBLISHED) return false;
   if (!a || !b) return !a && !b;
   return typeof a.isEqual === "function" ? a.isEqual(b) : a.toMillis() === b.toMillis();
 }
@@ -26,6 +31,16 @@ function sameStamp(a, b) {
 function plain(data) {
   return JSON.parse(JSON.stringify(data));
 }
+
+// So data bất kể thứ tự key (Firestore trả map theo thứ tự riêng).
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort().map((k) => [k, canonical(value[k])]));
+  }
+  return value;
+}
+const sameData = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 
 export function createContentStore({ db, getUser }) {
   const draftRef = doc(db, "siteContent", "draft");
@@ -58,8 +73,10 @@ export function createContentStore({ db, getUser }) {
   // Một transaction: bản published cũ (nếu có) chép nguyên sang lịch sử, ghi published mới, nháp =
   // bản vừa xuất bản (để mở lại trình sửa thấy đúng nội dung khách đang thấy). Lần đầu chưa có
   // published thì không ghi lịch sử (rules từ chối cả batch).
-  // expectedUpdatedAt: updatedAt của published lúc trình sửa đọc (null = chưa có). Khác bản trên máy
-  // chủ -> StalePublishError, không ghi gì, thay vì đè lên bản admin khác vừa xuất bản.
+  // expectedUpdatedAt: updatedAt của bản published mà nội dung đang sửa dựa trên (null = chưa có).
+  // Khác bản trên máy chủ -> StalePublishError, không ghi gì, thay vì đè lên bản admin khác vừa xuất bản.
+  // Trả mốc mới cho lần xuất bản sau: updatedAt của bản vừa ghi, hoặc UNKNOWN_PUBLISHED nếu đọc lại
+  // đã thấy bản khác.
   async function publish(data, expectedUpdatedAt) {
     const by = email();
     const content = plain(data);
@@ -84,6 +101,14 @@ export function createContentStore({ db, getUser }) {
       }
       throw error;
     }
+    // Đã xuất bản xong: đọc lại lỗi cũng không coi là xuất bản hỏng.
+    try {
+      const after = await getDoc(publishedRef);
+      const now = after.exists() ? after.data() : null;
+      return now && now.updatedBy === by && sameData(now.data, content) ? now.updatedAt : UNKNOWN_PUBLISHED;
+    } catch {
+      return UNKNOWN_PUBLISHED;
+    }
   }
 
   async function listHistory() {
@@ -92,12 +117,13 @@ export function createContentStore({ db, getUser }) {
   }
 
   // Khôi phục = xuất bản lại data của bản lịch sử; bản lịch sử giữ nguyên.
+  // Trả { data, publishedStamp } như publish.
   async function restore(historyId, expectedUpdatedAt) {
     const snap = await getDoc(doc(historyCol, historyId));
     if (!snap.exists()) throw new Error("Không tìm thấy bản lịch sử.");
     const data = snap.data().data;
-    await publish(data, expectedUpdatedAt);
-    return plain(data);
+    const publishedStamp = await publish(data, expectedUpdatedAt);
+    return { data: plain(data), publishedStamp };
   }
 
   return { load, saveDraft, publish, listHistory, restore };

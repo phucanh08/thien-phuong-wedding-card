@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 Web thiệp cưới di động (tiếng Việt) của **Thiện & Phương**. Port từ mẫu
-`https://github.com/phucanh08/wedding-card` (thiệp Phúc Anh & Ngọc, giao diện template135).
+`https://github.com/phucanh08/wedding-card` (thiệp Phúc Anh & Ngọc). Từ 2026-10-02 chỉ còn một giao diện:
+v2, theo mẫu "Nhà Có Hỷ" (`https://vowry.me/template/nha-co-hy/demo/`).
 
 ## Chạy local
 
@@ -33,9 +34,9 @@ bản x86_64 và chạy bình thường. Phục vụ web tĩnh vẫn dùng `/usr
 
 ## Cấu trúc đích
 
-- `docs/index.html` — chỉ chuyển hướng sang phiên bản mặc định (`DEFAULT_VERSION`), giữ `?code=`.
-- `docs/v1/index.html` (template135) và `docs/v2/` (mẫu "Nhà Có Hỷ") — hai phiên bản thiệp,
-  **không minify**; dùng chung `docs/content-loader.js` để lấy nội dung.
+- `docs/index.html` — đọc bản xuất bản một lần rồi chuyển sang `docs/v2/`, giữ `?code=` và `#hash`.
+- `docs/v2/` (mẫu "Nhà Có Hỷ") — thiệp duy nhất, **không minify**; lấy nội dung qua
+  `docs/content-loader.js`. `docs/v1/index.html` chỉ còn là trang chuyển hướng sang `/v2/` cho link cũ.
 - `docs/wedding-data.js` — nội dung dự phòng (C6): tên, gia đình, sự kiện, ngân hàng, album,
   chuyện tình, nhạc. Markup đọc từ dữ liệu; không hard-code nội dung trong HTML.
 - `docs/firebase-config.js` — cấu hình Firestore (`guests`, `rsvp`, `wishes`).
@@ -139,11 +140,14 @@ bản x86_64 và chạy bình thường. Phục vụ web tĩnh vẫn dùng `/usr
      không đè bản mới, qua cùng kiểm hợp lệ/normalize; Human duyệt 2026-10-02); chưa có bản lưu →
      `docs/wedding-data.js` (dự phòng, vẫn giữ trong repo). Mỗi lần vẽ đúng một nguồn
      (`source`: `published` | `cached` | `fallback`). Đường vào qua `/` đọc Firestore một lần và
-     chuyển kết quả sang trang phiên bản. Xuất bản đầu tiên = nội dung `wedding-data.js` hiện tại.
-   - Phiên bản thiệp (Human chọn 2026-10-02): field tuỳ chọn `site.version` ∈ `"v1"` | `"v2"` |
-     `"both"`, thiếu/sai → `"v1"`. `/` và `/?code=` mở bản theo `published`; `"both"` → trang chọn
-     giữ `?code=`/`#hash`; không đọc được → `v1`. `/v1/`, `/v2/` mở trực tiếp luôn được.
-   - Lưới ảnh (Human chọn 2026-10-02): một album chung `gallery`; `featured: true` = ảnh ở lưới v1
-     (không ảnh nào → 6 ảnh đầu); field tuỳ chọn `featuredV2: true` = ảnh ở băng ảnh Album v2
-     (không ảnh nào → như lưới v1). Ảnh bìa v2 thiếu `wedding.coverImages` → lấy từ lưới v2.
-     "Tất cả hình ảnh"/xem ảnh lớn mở cả album theo thứ tự album ở cả hai bản.
+     chuyển kết quả sang trang thiệp. Xuất bản đầu tiên = nội dung `wedding-data.js` hiện tại.
+   - Chỉ còn thiệp v2 (Human chọn 2026-10-02): `/`, `/?code=`, `/v1/…` đều mở `/v2/`, giữ
+     `?code=`/`#hash`. Field cũ `site.version` còn trong data nhưng bị bỏ qua.
+   - Field chỉ thiệp v1 cũ dùng (`couple.*.photo`, `couple.*.bio`, `couple.*.facebook`,
+     `wedding.lunarText`, `events[].image`, `gallery[].featured`) giữ nguyên trong data. Trang quản lý
+     không hiện, không sửa các field này.
+   - Album (Human chọn 2026-10-02): một album chung `gallery`. Ô "Hiện ở Album" của trang quản lý ghi
+     `featuredV2: true` cho đúng các ảnh hiện ở băng ảnh Album, luôn ≥ 1 ảnh. Không ảnh nào
+     `featuredV2` (data cũ) → ảnh `featured: true`; không có → 6 ảnh đầu. Ảnh bìa thiếu
+     `wedding.coverImages` → lấy từ băng ảnh Album. "Tất cả hình ảnh"/xem ảnh lớn mở cả album theo
+     thứ tự album.

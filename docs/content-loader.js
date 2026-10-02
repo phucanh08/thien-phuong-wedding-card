@@ -1,30 +1,20 @@
 // Nạp nội dung thiệp: bản đã xuất bản siteContent/published (CLAUDE.md mục 6); đọc không kịp thì bản
 // xuất bản gần nhất đã lưu trên máy khách, chưa có bản lưu thì docs/wedding-data.js (dự phòng). Dùng
-// cho thiệp (/v2/) và khung xem trước của trang quản lý.
+// cho thiệp (gốc site, docs/index.html) và khung xem trước của trang quản lý.
 //
 //   const { data, source } = await loadWeddingContent();  // source: 'published' | 'cached' | 'fallback'
 //
 // Chỉ reject khi cả wedding-data.js cũng không nạp được. Cả trang phải dùng đúng một `data` trả về,
 // không trộn các nguồn. `data` đã qua normalize(): đủ shape WEDDING_DATA, URL/màu sai đã bị bỏ.
 // Đọc qua Firestore REST (một fetch) thay vì SDK: không phải tải SDK trước khi vẽ thiệp, và không
-// đụng instance Firestore của firebase-config.js (nối emulator chỉ được làm một lần).
-//
-// Khách vào bằng đường gốc (docs/index.html -> preloadPublished -> /v2/): đường gốc đọc và chờ một lần,
-// ghi kết quả vào sessionStorage; trang thiệp mở ngay sau đó dùng lại kết quả này (một lần) thay vì
-// đọc và chờ lại. Mở thẳng /v2/ hay tải lại trang thì đọc như thường.
+// đụng instance Firestore của firebase-config.js (nối emulator chỉ được làm một lần). Mỗi lượt mở thiệp
+// đọc một lần: thiệp vẽ ngay ở gốc site, không còn trang trung gian đọc trước.
 import { FIREBASE_CONFIG, FIRESTORE_EMULATOR_PORT, USE_EMULATOR } from './firebase-shared.js';
 
 const TIMEOUT_MS = 2500;
-// Đường gốc là lần chờ duy nhất của lượt /?code=: tính từ lúc bắt đầu điều hướng (performance.now()),
-// không từ lúc module chạy, và chừa ~2s cho trang thiệp tải và vẽ, để khi Firestore treo khách vẫn
-// thấy thiệp trong 4s. Trang gốc tự tải quá chậm thì vẫn chờ ít nhất ROOT_MIN_WAIT_MS.
-const ROOT_DEADLINE_MS = 2000;
-const ROOT_MIN_WAIT_MS = 1000;
 // Quá thời gian chờ thì thiệp vẽ bằng nguồn khác, nhưng request vẫn chạy tới REFRESH_FACTOR lần thời
 // gian chờ để lưu bản mới cho lần sau: máy mạng chậm không bị kẹt mãi ở bản lưu cũ.
 const REFRESH_FACTOR = 8;
-// Kết quả đường gốc chỉ có giá trị cho trang thiệp mở ngay sau nó; cũ hơn thì trang thiệp đọc lại.
-const HANDOFF_MAX_AGE_MS = 30000;
 const FALLBACK_SCRIPT = new URL('./wedding-data.js', import.meta.url).href;
 
 const FIRESTORE_ORIGIN = USE_EMULATOR
@@ -33,22 +23,15 @@ const FIRESTORE_ORIGIN = USE_EMULATOR
 // Không gắn ?key=: rules cho ai cũng get siteContent/published, khỏi phụ thuộc giới hạn của API key
 const PUBLISHED_URL = `${FIRESTORE_ORIGIN}/v1/projects/${FIREBASE_CONFIG.projectId}`
     + '/databases/(default)/documents/siteContent/published';
-// localStorage: bản xuất bản gần nhất đọc được { data, updateTime }; sessionStorage: kết quả đường gốc
+// localStorage: bản xuất bản gần nhất đọc được { data, updateTime }
 const CACHE_KEY = `weddingCard:published:${FIREBASE_CONFIG.projectId}`;
-const HANDOFF_KEY = `weddingCard:handoff:${FIREBASE_CONFIG.projectId}`;
 
 // wedding-data.js trang đã nạp sẵn, lấy lúc module chạy: trang sẽ ghi đè window.WEDDING_DATA bằng
 // nội dung đang dùng, gọi lại loadWeddingContent() vẫn phải ra đúng bản dự phòng
 let fallbackData = window.WEDDING_DATA || null;
 
 export async function loadWeddingContent({ timeoutMs = TIMEOUT_MS } = {}) {
-    let result = takeHandoff();
-    if (!result) {
-        result = await readPublished(timeoutMs);
-    } else if (result.status === 'unreachable') {
-        // Đường gốc đã chờ hết giờ: không chờ lần hai, chỉ đọc nền để lưu bản mới cho lần sau
-        fetchPublished(timeoutMs * REFRESH_FACTOR);
-    }
+    const result = await readPublished(timeoutMs);
     if (result.status === 'published') return { data: normalize(result.data), source: 'published' };
     if (result.status === 'unreachable') {
         const cached = readCache();
@@ -59,13 +42,6 @@ export async function loadWeddingContent({ timeoutMs = TIMEOUT_MS } = {}) {
     }
     console.warn('Không dùng được bản xuất bản, dùng nội dung dự phòng:', result.reason);
     return { data: normalize(await loadFallback()), source: 'fallback' };
-}
-
-// Đường dẫn gốc (docs/index.html) đọc bản xuất bản một lần rồi chuyển sang /v2/: kết quả (kể cả quá
-// giờ) được trang thiệp dùng lại, không đọc/chờ lần hai. site.version (C6) còn trong data nhưng bị bỏ
-// qua: chỉ còn thiệp v2. Không nạp wedding-data.js: khách không phải chờ thêm sau thời gian chờ.
-export async function preloadPublished({ timeoutMs = Math.max(ROOT_MIN_WAIT_MS, ROOT_DEADLINE_MS - performance.now()) } = {}) {
-    saveHandoff(await readPublished(timeoutMs));
 }
 
 // Kết quả đọc bản xuất bản, chờ tối đa timeoutMs:
@@ -111,7 +87,7 @@ async function fetchPublished(limitMs) {
 // ----- Lưu trên máy khách -----
 // Trình duyệt chặn storage (chế độ riêng tư, cấm cookie) hoặc đầy -> coi như không có bản lưu.
 // Bản xem trước của trang quản lý (window.__contentPreview, admin/content-preview.js) vẽ bản nháp:
-// không lấy kết quả đường gốc, không đọc/ghi bản lưu của khách.
+// không đọc/ghi bản lưu của khách.
 function storage(name) {
     try {
         return window.__contentPreview ? null : window[name] || null;
@@ -157,28 +133,6 @@ function saveCache({ data, updateTime }) {
     const cached = readCache();
     if (cached && timeOf(cached.updateTime) > time) return;
     writeJson(store, CACHE_KEY, { data, updateTime });
-}
-
-function saveHandoff(result) {
-    writeJson(storage('sessionStorage'), HANDOFF_KEY, { ...result, at: Date.now() });
-}
-
-// Kết quả đường gốc, dùng một lần. Cũ quá HANDOFF_MAX_AGE_MS, sai dạng hay bản xuất bản trong đó
-// không hợp lệ -> null (trang đọc lại).
-function takeHandoff() {
-    const store = storage('sessionStorage');
-    const handoff = readJson(store, HANDOFF_KEY);
-    try {
-        if (store) store.removeItem(HANDOFF_KEY);
-    } catch {
-        // bị chặn: readJson cũng đã ra null
-    }
-    if (!isObject(handoff)) return null;
-    const age = Date.now() - handoff.at;
-    if (!(age >= 0 && age <= HANDOFF_MAX_AGE_MS)) return null;
-    if (handoff.status === 'published') return findMissingField(handoff.data) ? null : handoff;
-    if (!['missing', 'unreachable'].includes(handoff.status)) return null;
-    return { status: handoff.status, reason: `đường gốc: ${handoff.reason}` };
 }
 
 // Firestore REST trả giá trị có kiểu ({ stringValue }, { mapValue: { fields } }...) -> JS thường.

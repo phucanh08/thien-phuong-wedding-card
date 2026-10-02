@@ -1,7 +1,7 @@
 // Unit test cho đường nạp nội dung của khách (F1c, Human duyệt 2026-10-02):
-// - Qua đường gốc /?code=: chỉ chờ Firestore một lần. Trang thiệp (/v2/) dùng lại kết quả đường gốc
-//   vừa đọc (thành công hay quá giờ), không đọc lại, không chờ lần hai. (X2: chỉ còn thiệp v2, đường gốc
-//   không chọn phiên bản nữa: preloadPublished thay loadCardVersion.)
+// - Mỗi lượt mở thiệp chỉ đọc/chờ Firestore một lần. (R1: thiệp vẽ ngay ở gốc site, không còn trang
+//   trung gian đọc trước rồi chuyển kết quả qua sessionStorage; kết quả cũ còn trong sessionStorage
+//   từ bản trước bị bỏ qua.)
 // - Máy đã từng tải được bản xuất bản: đọc mới không kịp / lỗi mạng -> bản đã lưu (source 'cached');
 //   chưa có bản lưu -> wedding-data.js (source 'fallback'). Bản lưu cũ hơn không đè bản mới.
 // Mỗi trang là một lần import content-loader.js mới (?trang=...), như hai document thật; chúng chỉ
@@ -83,56 +83,52 @@ test.afterEach(() => {
   restoreWarn();
 });
 
-// Lượt khách qua /?code=: đường gốc đọc trước bản xuất bản rồi trang thiệp vẽ.
-async function rootThenCard({ rootTimeout, cardTimeout } = {}) {
-  const root = await openPage();
-  await root.preloadPublished(rootTimeout ? { timeoutMs: rootTimeout } : undefined);
+// Lượt khách mở / hay /?code=: trang thiệp ở gốc site đọc bản xuất bản rồi vẽ.
+async function openCard({ timeoutMs } = {}) {
   const card = await openPage();
   const t0 = realNow();
-  const content = await card.loadWeddingContent(cardTimeout ? { timeoutMs: cardTimeout } : undefined);
+  const content = await card.loadWeddingContent(timeoutMs ? { timeoutMs } : undefined);
   return { ...content, cardMs: realNow() - t0 };
 }
 
-test("(A) qua /?code=: cả lượt chỉ đọc siteContent/published một lần", async () => {
+test("(A) mở /?code=: cả lượt chỉ đọc siteContent/published một lần", async () => {
   for (const version of ["v1", "v2", undefined]) {
     local.clear();
     serve(ok(published("Thiện mới", T1, version ? { site: { version } } : {})));
-    const r = await rootThenCard();
+    const r = await openCard();
     assert.equal(r.source, "published");
     assert.equal(groomOf(r), "Thiện mới");
     assert.equal(calls, 1, `${version}: ${calls} request`);
   }
 });
 
-test("(A) Firestore treo: trang phiên bản không chờ lần hai sau khi đường gốc đã hết giờ", async () => {
+test("(A) Firestore treo: thiệp chờ đúng một thời gian chờ rồi vẽ dự phòng", async () => {
   serve(hang);
-  const r = await rootThenCard({ rootTimeout: 80 });
+  const r = await openCard({ timeoutMs: 80 });
   assert.equal(r.source, "fallback");
-  assert.ok(r.cardMs < 400, `trang thiệp chờ ${r.cardMs}ms`);
+  assert.ok(r.cardMs >= 70 && r.cardMs < 400, `thiệp chờ ${r.cardMs}ms`);
+  assert.equal(calls, 1);
 });
 
-test("(A) mở thẳng /v2/ hoặc tải lại trang thiệp: đọc Firestore như cũ", async () => {
+test("(A) tải lại thiệp: đọc Firestore lại, mỗi lần một request", async () => {
   serve(ok(published("Thiện", T1)));
-  const direct = await (await openPage()).loadWeddingContent();
-  assert.equal(direct.source, "published");
-  assert.equal(calls, 1);
-
-  // Kết quả của đường gốc chỉ dùng một lần: tải lại trang thiệp thì đọc lại
-  serve(ok(published("Thiện", T1)));
-  await rootThenCard();
+  assert.equal((await openCard()).source, "published");
   assert.equal(calls, 1);
   serve(ok(published("Thiện sau tải lại", T2)));
-  const reload = await (await openPage()).loadWeddingContent();
+  const reload = await openCard();
   assert.equal(groomOf(reload), "Thiện sau tải lại");
   assert.equal(calls, 1);
 });
 
-test("(A) kết quả đường gốc đã cũ (trang thiệp mở muộn) -> đọc lại, không dùng", async () => {
-  serve(ok(published("Thiện cũ", T1)));
-  await (await openPage()).preloadPublished();
-  Date.now = () => realNow() + 10 * 60 * 1000;
+// Bản trước, trang gốc đọc trước rồi ghi kết quả vào sessionStorage cho trang /v2/ dùng lại. Tab còn
+// kết quả đó (mở thiệp ngay trước khi site cập nhật) không được thay cho lần đọc thật.
+test("(A) kết quả đường gốc cũ còn trong sessionStorage bị bỏ qua: vẫn đọc Firestore", async () => {
+  const stale = { status: "published", data: JSON.parse(JSON.stringify(FALLBACK)), updateTime: T1, at: realNow() };
+  stale.data.couple.groom.shortName = "Thiện trong handoff";
+  session.setItem("weddingCard:handoff:thien-phuong-wedding-1025", JSON.stringify(stale));
   serve(ok(published("Thiện mới", T2)));
-  const r = await (await openPage()).loadWeddingContent();
+  const r = await openCard();
+  assert.equal(r.source, "published");
   assert.equal(groomOf(r), "Thiện mới");
   assert.equal(calls, 1);
 });
@@ -162,22 +158,22 @@ test("(B) đã tải thành công một lần: lần sau quá giờ / mất mạ
   assert.equal(r.source, "cached");
   assert.equal(groomOf(r), "Thiện đã lưu");
 
-  // Qua đường gốc: nội dung lấy từ bản đã lưu, trang thiệp không chờ lần hai
+  // Mở /?code=: nội dung lấy từ bản đã lưu sau đúng một thời gian chờ
   local.clear();
   serve(ok(published("Thiện v2 đã lưu", T1, { site: { version: "v2" } })));
   await (await openPage()).loadWeddingContent();
   serve(hang);
-  r = await rootThenCard({ rootTimeout: 60 });
+  r = await openCard({ timeoutMs: 60 });
   assert.equal(r.source, "cached");
   assert.equal(groomOf(r), "Thiện v2 đã lưu");
-  assert.ok(r.cardMs < 400, `trang thiệp chờ ${r.cardMs}ms`);
+  assert.ok(r.cardMs < 400, `thiệp chờ ${r.cardMs}ms`);
 });
 
 test("(B) xuất bản bản mới, mạng tốt -> hiện bản mới và cập nhật bản lưu", async () => {
   serve(ok(published("Thiện 1", T1)));
-  await rootThenCard();
+  await openCard();
   serve(ok(published("Thiện 2", T2)));
-  const r = await rootThenCard();
+  const r = await openCard();
   assert.equal(r.source, "published");
   assert.equal(groomOf(r), "Thiện 2");
   serve(hang);
@@ -206,14 +202,14 @@ test("(B) đọc chậm hơn thời gian chờ: vẽ bằng nguồn khác, bản
   assert.equal(groomOf(next), "Thiện về muộn");
 });
 
-test("(B) đường gốc hết giờ: trang thiệp đọc nền để lưu bản mới, không chờ nó", async () => {
+test("(B) hết giờ khi đã có bản lưu: vẽ bản lưu, bản mới về muộn được lưu cho lần sau", async () => {
   serve(ok(published("Thiện cũ", T1)));
   await (await openPage()).loadWeddingContent();
   serve(later(published("Thiện mới", T2), 150));
-  const r = await rootThenCard({ rootTimeout: 40, cardTimeout: 40 });
+  const r = await openCard({ timeoutMs: 40 });
   assert.equal(r.source, "cached");
   assert.equal(groomOf(r), "Thiện cũ");
-  assert.ok(r.cardMs < 100, `trang thiệp chờ ${r.cardMs}ms`);
+  assert.ok(r.cardMs < 100, `thiệp chờ ${r.cardMs}ms`);
   await sleep(250);
   serve(hang);
   assert.equal(groomOf(await (await openPage()).loadWeddingContent({ timeoutMs: 40 })), "Thiện mới");
@@ -266,7 +262,7 @@ test("storage bị chặn (trình duyệt cấm / đầy): vẫn chạy như tr�
   window.sessionStorage = blocked;
   try {
     serve(ok(published("Thiện", T1, { site: { version: "v2" } })));
-    const r = await rootThenCard();
+    const r = await openCard();
     assert.equal(r.source, "published");
     serve(hang);
     assert.equal((await (await openPage()).loadWeddingContent({ timeoutMs: 40 })).source, "fallback");
@@ -279,8 +275,6 @@ test("storage bị chặn (trình duyệt cấm / đầy): vẫn chạy như tr�
 test("xem trước của trang quản lý (__contentPreview): không đọc, không ghi bản lưu", async () => {
   serve(ok(published("Thiện đã lưu", T1)));
   await (await openPage()).loadWeddingContent();
-  // Đường gốc vừa đọc trong cùng tab: bản xem trước không được lấy kết quả đó thay bản nháp
-  await (await openPage()).preloadPublished();
   const saved = [...local.map];
   window.__contentPreview = true;
   try {

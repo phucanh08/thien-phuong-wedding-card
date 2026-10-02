@@ -1,0 +1,56 @@
+/* Khung cắt ảnh (image-cropper.js) và hộp chọn ảnh (image-picker.js). */
+
+.image-cropper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .5rem;
+}
+
+.image-cropper-frame {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: var(--crop-aspect);
+  width: min(100%, 360px, calc(60vh * var(--crop-aspect)));
+  background: #2b2226;
+  border-radius: .5rem;
+  outline: 2px solid rgba(255, 255, 255, .85);
+  outline-offset: -2px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.image-cropper-frame:active { cursor: grabbing; }
+
+.image-cropper-frame:focus-visible { box-shadow: 0 0 0 .25rem rgba(180, 80, 106, .4); }
+
+.image-cropper-frame.is-locked { cursor: default; }
+
+.image-cropper-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.image-cropper-zoom {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  width: min(100%, 360px);
+  font-size: .875rem;
+  color: #6c757d;
+}
+
+.image-cropper-zoom .form-range { flex: 1; }
+
+.image-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  justify-content: center;
+}

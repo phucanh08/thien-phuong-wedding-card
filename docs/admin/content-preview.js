@@ -1,10 +1,10 @@
 // Xem trước sống của thiệp khi đang sửa nội dung, không cần xuất bản và không sửa thiệp.
 //
-// Cách làm: iframe cùng origin, ghi (document.write) đúng HTML của /v2/ kèm một script
-// chạy đầu tiên thay fetch tới siteContent/published bằng data đang sửa. Thiệp vẫn đi qua
+// Cách làm: iframe cùng origin, ghi (document.write) đúng HTML của thiệp (gốc site, index.html) kèm
+// một script chạy đầu tiên thay fetch tới siteContent/published bằng data đang sửa. Thiệp vẫn đi qua
 // content-loader.js thật (validate + normalize), nên xem trước giống hệt thứ khách sẽ thấy.
 // document.open() gán URL của trang quản lý cho iframe: location.hostname vẫn là localhost khi chạy
-// local (thiệp tự nối emulator), <base href="../"> trỏ về gốc site như ở /v2/.
+// local (thiệp tự nối emulator); <base> chèn thêm trỏ về gốc site để đường dẫn tương đối như ở trang gốc.
 // Mỗi lần vẽ lại dùng iframe mới (window mới): script thường của thiệp khai báo biến toàn cục bằng
 // const, ghi lại vào cùng window sẽ lỗi "already declared".
 import { toFirestoreValue } from "./content-model.js";
@@ -68,7 +68,7 @@ export function createPreview({ container, onState }) {
 
   async function pageHtml() {
     if (html === null) {
-      const response = await fetch(new URL("v2/index.html", SITE_ROOT), { cache: "no-store" });
+      const response = await fetch(new URL("index.html", SITE_ROOT), { cache: "no-store" });
       if (!response.ok) throw new Error(`Không tải được thiệp (HTTP ${response.status}).`);
       html = await response.text();
     }
@@ -105,7 +105,7 @@ export function createPreview({ container, onState }) {
     frame.title = "Xem trước thiệp";
     container.append(frame);
     const injected = page.replace(/<head([^>]*)>/i,
-      (tag) => `${tag}${bootstrapScript({ fields: { data: toFirestoreValue(data) } })}`);
+      (tag) => `${tag}<base href="${SITE_ROOT.href}">${bootstrapScript({ fields: { data: toFirestoreValue(data) } })}`);
     const doc = frame.contentDocument;
     doc.open();
     doc.write(injected);

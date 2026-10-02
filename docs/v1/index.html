@@ -7,12 +7,12 @@
     <meta name="robots" content="noindex">
     <!-- data:, chặn trình duyệt tự xin /favicon.ico (404) trong lúc chuyển sang thiệp -->
     <link rel="icon" href="data:,">
-    <!-- Thiệp chỉ còn bản v2: link /v1/ cũ (kể cả /v1/index.html) chuyển sang /v2/, giữ ?code= và #hash.
+    <!-- Thiệp nằm ở gốc site: link /v1/ cũ (kể cả /v1/index.html) chuyển về /, giữ ?code= và #hash.
          Dự phòng khi tắt JS (không giữ query/hash) nằm trong noscript để không tranh với location.replace. -->
-    <noscript><meta http-equiv="refresh" content="0; url=../v2/"></noscript>
-    <script>location.replace('../v2/' + location.search + location.hash);</script>
+    <noscript><meta http-equiv="refresh" content="0; url=../"></noscript>
+    <script>location.replace('../' + location.search + location.hash);</script>
 </head>
 <body>
-    <p><a href="../v2/">Mở thiệp cưới</a></p>
+    <p><a href="../">Mở thiệp cưới</a></p>
 </body>
 </html>

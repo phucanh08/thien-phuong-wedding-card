@@ -33,3 +33,25 @@ và báo "bad CPU type". Dùng `/usr/bin/python3`, `/usr/bin/ruby`, `sips`, `git
    Phúc Anh–Ngọc. Nội dung Thiện–Phương chưa có → placeholder đánh dấu `TODO`.
 4. **External side effect** (push, GitHub Pages, tên miền, Firebase): chỉ Lead/Human làm,
    writer không làm.
+5. **Hợp đồng dữ liệu Firestore** (project `thien-phuong-wedding-1025`, `(default)`,
+   `asia-southeast1`). Thiệp (`docs/index.html`), trang quản lý (`docs/admin/`) và
+   `firestore.rules` cùng tuân theo; đổi tên collection/field/quyền cần ruling của Lead + Human.
+
+   | Collection | Doc id | Field |
+   |---|---|---|
+   | `guests` | `code`: 8 ký tự `[a-z2-9]` ngẫu nhiên, dùng trong link `?code=` | `name` string (tên hiện trên thiệp), `salutation` string? (vd "Anh", "Cô chú"), `side` `"groom"\|"bride"`, `group` string, `phone` string?, `invitedEvents` string[] (key event trong `wedding-data.js`), `expectedCount` int ≥ 1, `note` string?, `createdAt`/`updatedAt` timestamp, `createdBy` email |
+   | `rsvp` | `code` của khách; khách không có code → auto id | `code` string\|null, `name` string (bắt buộc khi `code` null), `attending` `"yes"\|"no"\|"maybe"`, `count` int 0–20, `events` string[], `note` string? ≤ 500, `updatedAt` timestamp |
+   | `wishes` | auto id | `name` string ≤ 60, `message` string ≤ 500, `code` string\|null, `createdAt` timestamp |
+   | `accessRequests` | `uid` Firebase Auth | `email`, `displayName`, `status` `"pending"\|"approved"\|"rejected"`, `requestedAt`, `decidedAt`?, `decidedBy`? |
+
+   Quyền:
+   - **Super admin**: `request.auth.token.email == "phucanhdn01@gmail.com"` và `email_verified`.
+   - **Admin**: super admin, hoặc `accessRequests/{uid}.status == "approved"`. Admin đọc/ghi mọi
+     collection (kể cả xoá lời chúc, duyệt/từ chối yêu cầu).
+   - **Người đăng nhập chưa được duyệt**: chỉ tạo/đọc `accessRequests/{uid}` của chính mình với
+     `status: "pending"`; không tự đổi `status`; không đọc dữ liệu khác.
+   - **Khách (không đăng nhập)**: `get` một `guests/{code}` (không `list`); tạo/sửa `rsvp/{code}`
+     khi `guests/{code}` tồn tại, tạo `rsvp/{autoId}` khi `code == null` và có `name`; đọc và tạo
+     `wishes` (không sửa/xoá); field validate đúng kiểu và độ dài như bảng.
+   - Link `?code=` không tồn tại hoặc không có: thiệp chào chung, **không** tự tạo `guests`.
+   - Số mâm = làm tròn lên (tổng `count` của RSVP `attending == "yes"` có event đó) / 10.

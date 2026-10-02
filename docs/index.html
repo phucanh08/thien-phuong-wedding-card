@@ -42,8 +42,10 @@
     </script>
     <script type="module">
         // Đường dẫn gốc mở phiên bản thiệp admin đã xuất bản (site.version, C6): v1, v2, hoặc
-        // "both" = trang chọn. Không đọc được thì v1 (content-loader.js: chưa xuất bản, lỗi, quá
-        // thời gian chờ). /v1/ và /v2/ mở trực tiếp không qua đây. Giữ nguyên ?code= và #hash.
+        // "both" = trang chọn. Đọc không kịp thì theo bản xuất bản đã lưu trên máy, không có thì v1
+        // (content-loader.js). Đây là lần chờ Firestore duy nhất của lượt: content-loader.js chuyển
+        // kết quả cho trang phiên bản, trang đó không đọc/chờ lại. /v1/ và /v2/ mở trực tiếp không
+        // qua đây. Giữ nguyên ?code= và #hash.
         const target = version => `${version}/${location.search}${location.hash}`;
 
         document.querySelector('#router-wait a').href = target('v1');

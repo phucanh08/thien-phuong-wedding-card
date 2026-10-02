@@ -1,15 +1,31 @@
-// Nạp nội dung thiệp: bản đã xuất bản siteContent/published (CLAUDE.md mục 6), không được thì
-// dùng docs/wedding-data.js (dự phòng). Dùng chung cho mọi phiên bản thiệp (/v1/, /v2/...).
+// Nạp nội dung thiệp: bản đã xuất bản siteContent/published (CLAUDE.md mục 6); đọc không kịp thì bản
+// xuất bản gần nhất đã lưu trên máy khách, chưa có bản lưu thì docs/wedding-data.js (dự phòng). Dùng
+// chung cho mọi phiên bản thiệp (/v1/, /v2/...).
 //
-//   const { data, source } = await loadWeddingContent();  // source: 'published' | 'fallback'
+//   const { data, source } = await loadWeddingContent();  // source: 'published' | 'cached' | 'fallback'
 //
 // Chỉ reject khi cả wedding-data.js cũng không nạp được. Cả trang phải dùng đúng một `data` trả về,
-// không trộn hai nguồn. `data` đã qua normalize(): đủ shape WEDDING_DATA, URL/màu sai đã bị bỏ.
+// không trộn các nguồn. `data` đã qua normalize(): đủ shape WEDDING_DATA, URL/màu sai đã bị bỏ.
 // Đọc qua Firestore REST (một fetch) thay vì SDK: không phải tải SDK trước khi vẽ thiệp, và không
 // đụng instance Firestore của firebase-config.js (nối emulator chỉ được làm một lần).
+//
+// Khách vào bằng đường gốc (docs/index.html -> loadCardVersion -> /v1/ hoặc /v2/): đường gốc đọc và
+// chờ một lần, ghi kết quả vào sessionStorage; trang phiên bản mở ngay sau đó dùng lại kết quả này
+// (một lần) thay vì đọc và chờ lại. Mở thẳng /v1/, /v2/ hay tải lại trang thì đọc như thường.
 import { FIREBASE_CONFIG, FIRESTORE_EMULATOR_PORT, USE_EMULATOR } from './firebase-shared.js';
 
 const TIMEOUT_MS = 2500;
+// Đường gốc là lần chờ duy nhất của lượt /?code=: tính từ lúc bắt đầu điều hướng (performance.now()),
+// không từ lúc module chạy, và chừa ~2s cho trang phiên bản tải và vẽ, để khi Firestore treo khách vẫn
+// thấy thiệp trong 4s. Trang gốc tự tải quá chậm thì vẫn chờ ít nhất ROOT_MIN_WAIT_MS.
+const ROOT_DEADLINE_MS = 2000;
+const ROOT_MIN_WAIT_MS = 1000;
+// Quá thời gian chờ thì thiệp vẽ bằng nguồn khác, nhưng request vẫn chạy tới REFRESH_FACTOR lần thời
+// gian chờ để lưu bản mới cho lần sau: máy mạng chậm không bị kẹt mãi ở bản lưu cũ.
+const REFRESH_FACTOR = 8;
+// Kết quả đường gốc chỉ có giá trị cho trang phiên bản mở ngay sau nó (gồm cả lúc khách đứng ở
+// trang chọn khi site.version = 'both'); cũ hơn thì trang phiên bản đọc lại.
+const HANDOFF_MAX_AGE_MS = 30000;
 const FALLBACK_SCRIPT = new URL('./wedding-data.js', import.meta.url).href;
 
 const FIRESTORE_ORIGIN = USE_EMULATOR
@@ -18,33 +34,45 @@ const FIRESTORE_ORIGIN = USE_EMULATOR
 // Không gắn ?key=: rules cho ai cũng get siteContent/published, khỏi phụ thuộc giới hạn của API key
 const PUBLISHED_URL = `${FIRESTORE_ORIGIN}/v1/projects/${FIREBASE_CONFIG.projectId}`
     + '/databases/(default)/documents/siteContent/published';
+// localStorage: bản xuất bản gần nhất đọc được { data, updateTime }; sessionStorage: kết quả đường gốc
+const CACHE_KEY = `weddingCard:published:${FIREBASE_CONFIG.projectId}`;
+const HANDOFF_KEY = `weddingCard:handoff:${FIREBASE_CONFIG.projectId}`;
 
 // wedding-data.js trang đã nạp sẵn, lấy lúc module chạy: trang sẽ ghi đè window.WEDDING_DATA bằng
 // nội dung đang dùng, gọi lại loadWeddingContent() vẫn phải ra đúng bản dự phòng
 let fallbackData = window.WEDDING_DATA || null;
 
 export async function loadWeddingContent({ timeoutMs = TIMEOUT_MS } = {}) {
-    try {
-        const data = await fetchPublished(timeoutMs);
-        const problem = findMissingField(data);
-        if (!problem) return { data: normalize(data), source: 'published' };
-        console.warn('Bản xuất bản thiếu dữ liệu, dùng nội dung dự phòng:', problem);
-    } catch (error) {
-        console.warn('Không đọc được bản xuất bản, dùng nội dung dự phòng:', error.message);
+    let result = takeHandoff();
+    if (!result) {
+        result = await readPublished(timeoutMs);
+    } else if (result.status === 'unreachable') {
+        // Đường gốc đã chờ hết giờ: không chờ lần hai, chỉ đọc nền để lưu bản mới cho lần sau
+        fetchPublished(timeoutMs * REFRESH_FACTOR);
     }
+    if (result.status === 'published') return { data: normalize(result.data), source: 'published' };
+    if (result.status === 'unreachable') {
+        const cached = readCache();
+        if (cached) {
+            console.warn('Không đọc kịp bản xuất bản, dùng bản đã lưu trên máy:', result.reason);
+            return { data: normalize(cached.data), source: 'cached' };
+        }
+    }
+    console.warn('Không dùng được bản xuất bản, dùng nội dung dự phòng:', result.reason);
     return { data: normalize(await loadFallback()), source: 'fallback' };
 }
 
-// Phiên bản thiệp mà đường dẫn gốc (docs/index.html) mở: site.version của bản xuất bản.
-// Chưa xuất bản, đọc lỗi, bản xuất bản hỏng (thiệp cũng bỏ nó) hoặc quá thời gian chờ -> 'v1'.
+// Phiên bản thiệp mà đường dẫn gốc (docs/index.html) mở: site.version của bản xuất bản. Đọc không
+// kịp thì theo bản đã lưu (trang phiên bản cũng sẽ vẽ bản đó). Chưa xuất bản, bản xuất bản hỏng (thiệp
+// cũng bỏ nó), hoặc không kịp mà chưa có bản lưu -> 'v1'.
 // Không nạp wedding-data.js: khách không phải chờ thêm sau thời gian chờ.
-export async function loadCardVersion({ timeoutMs = TIMEOUT_MS } = {}) {
-    try {
-        const data = await fetchPublished(timeoutMs);
-        if (!findMissingField(data)) return cardVersion(data);
-    } catch (error) {
-        console.warn('Không đọc được phiên bản thiệp, mở v1:', error.message);
-    }
+export async function loadCardVersion({ timeoutMs = Math.max(ROOT_MIN_WAIT_MS, ROOT_DEADLINE_MS - performance.now()) } = {}) {
+    const result = await readPublished(timeoutMs);
+    saveHandoff(result);
+    if (result.status === 'published') return cardVersion(result.data);
+    const cached = result.status === 'unreachable' ? readCache() : null;
+    if (cached) return cardVersion(cached.data);
+    console.warn('Không đọc được phiên bản thiệp, mở v1:', result.reason);
     return DEFAULT_VERSION;
 }
 
@@ -57,22 +85,117 @@ function cardVersion(data) {
     return CARD_VERSIONS.includes(version) ? version : DEFAULT_VERSION;
 }
 
-async function fetchPublished(timeoutMs) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+// Kết quả đọc bản xuất bản, chờ tối đa timeoutMs:
+//   { status: 'published', data, updateTime }  bản hợp lệ (đã lưu lại trên máy)
+//   { status: 'missing', reason }              Firestore trả lời: chưa xuất bản / bản hỏng -> dự phòng
+//   { status: 'unreachable', reason }          quá giờ, lỗi mạng, lỗi máy chủ -> bản lưu nếu có
+async function readPublished(timeoutMs) {
+    timeoutMs = Math.round(timeoutMs);
+    let timer;
+    const late = new Promise(resolve => {
+        timer = setTimeout(() => resolve({ status: 'unreachable', reason: `quá ${timeoutMs}ms` }), timeoutMs);
+    });
     try {
-        const response = await fetch(PUBLISHED_URL, { signal: controller.signal, cache: 'no-store' });
-        // 404: chưa xuất bản lần nào
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const doc = await response.json();
-        const data = doc.fields && doc.fields.data;
-        if (!data) throw new Error('doc không có field data');
-        return decodeValue(data);
-    } catch (error) {
-        throw controller.signal.aborted ? new Error(`quá ${timeoutMs}ms`) : error;
+        return await Promise.race([fetchPublished(timeoutMs * REFRESH_FACTOR), late]);
     } finally {
         clearTimeout(timer);
     }
+}
+
+// Không reject. Đọc được bản hợp lệ thì lưu lên máy, kể cả khi người chờ đã thôi chờ.
+async function fetchPublished(limitMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), limitMs);
+    try {
+        const response = await fetch(PUBLISHED_URL, { signal: controller.signal, cache: 'no-store' });
+        // 404: chưa xuất bản lần nào
+        if (response.status === 404) return { status: 'missing', reason: 'HTTP 404' };
+        if (!response.ok) return { status: 'unreachable', reason: `HTTP ${response.status}` };
+        const doc = await response.json();
+        const data = doc.fields && doc.fields.data ? decodeValue(doc.fields.data) : undefined;
+        const problem = findMissingField(data);
+        if (problem) return { status: 'missing', reason: `bản xuất bản thiếu dữ liệu: ${problem}` };
+        const result = { status: 'published', data, updateTime: doc.updateTime };
+        saveCache(result);
+        return result;
+    } catch (error) {
+        return { status: 'unreachable', reason: controller.signal.aborted ? `quá ${limitMs}ms` : error.message };
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+// ----- Lưu trên máy khách -----
+// Trình duyệt chặn storage (chế độ riêng tư, cấm cookie) hoặc đầy -> coi như không có bản lưu.
+// Bản xem trước của trang quản lý (window.__contentPreview, admin/content-preview.js) vẽ bản nháp:
+// không lấy kết quả đường gốc, không đọc/ghi bản lưu của khách.
+function storage(name) {
+    try {
+        return window.__contentPreview ? null : window[name] || null;
+    } catch {
+        return null;
+    }
+}
+
+function readJson(store, key) {
+    try {
+        return store ? JSON.parse(store.getItem(key)) : null;
+    } catch {
+        return null;
+    }
+}
+
+function writeJson(store, key, value) {
+    try {
+        if (store) store.setItem(key, JSON.stringify(value));
+    } catch {
+        // đầy / bị chặn: bỏ qua
+    }
+}
+
+const timeOf = value => {
+    const ms = typeof value === 'string' ? Date.parse(value) : NaN;
+    return Number.isNaN(ms) ? null : ms;
+};
+
+// Bản lưu qua cùng phép kiểm hợp lệ như bản mới (normalize() chạy lúc dùng).
+function readCache() {
+    const cached = readJson(storage('localStorage'), CACHE_KEY);
+    if (!isObject(cached) || timeOf(cached.updateTime) === null || findMissingField(cached.data)) return null;
+    return cached;
+}
+
+// updateTime do Firestore đặt mỗi lần ghi published: bản đọc về cũ hơn bản đang lưu (tab khác đã lưu
+// bản mới hơn) thì không đè.
+function saveCache({ data, updateTime }) {
+    const time = timeOf(updateTime);
+    const store = storage('localStorage');
+    if (time === null || !store) return;
+    const cached = readCache();
+    if (cached && timeOf(cached.updateTime) > time) return;
+    writeJson(store, CACHE_KEY, { data, updateTime });
+}
+
+function saveHandoff(result) {
+    writeJson(storage('sessionStorage'), HANDOFF_KEY, { ...result, at: Date.now() });
+}
+
+// Kết quả đường gốc, dùng một lần. Cũ quá HANDOFF_MAX_AGE_MS, sai dạng hay bản xuất bản trong đó
+// không hợp lệ -> null (trang đọc lại).
+function takeHandoff() {
+    const store = storage('sessionStorage');
+    const handoff = readJson(store, HANDOFF_KEY);
+    try {
+        if (store) store.removeItem(HANDOFF_KEY);
+    } catch {
+        // bị chặn: readJson cũng đã ra null
+    }
+    if (!isObject(handoff)) return null;
+    const age = Date.now() - handoff.at;
+    if (!(age >= 0 && age <= HANDOFF_MAX_AGE_MS)) return null;
+    if (handoff.status === 'published') return findMissingField(handoff.data) ? null : handoff;
+    if (!['missing', 'unreachable'].includes(handoff.status)) return null;
+    return { status: handoff.status, reason: `đường gốc: ${handoff.reason}` };
 }
 
 // Firestore REST trả giá trị có kiểu ({ stringValue }, { mapValue: { fields } }...) -> JS thường.

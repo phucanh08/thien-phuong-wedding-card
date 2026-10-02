@@ -5,6 +5,9 @@
 // - Hai ngón mà không ngón nào chạm ảnh: không chặn, trình duyệt phóng cả trang như bình thường.
 // - Ảnh gốc giữ nguyên trong layout (chỉ ẩn đi); thứ phóng to là bản sao position:fixed gắn vào body,
 //   nên transform của AOS hay overflow:hidden của khung ảnh không cắt được nó.
+// - Trong LightGallery: hai ngón trên ảnh đang xem cũng dùng cách trên thay cho zoom của lg-zoom
+//   (zoom đó không theo ngón tay và giữ ảnh phóng sau khi buông, làm vuốt chuyển ảnh thành kéo ảnh).
+//   Một ngón (vuốt chuyển ảnh, vuốt dọc đóng, chạm) vẫn để LightGallery xử lý.
 (function () {
     var TARGETS = '.main_image img, .member-image img, #photoGalleryContainer img, '
         + '.timeline-card .img-holder img, .event-item .image-wrap';
@@ -12,6 +15,8 @@
     var RETURN_MS = 300;
 
     var tracking = null;   // ảnh dưới ngón đầu tiên, giữ tới khi nhấc hết ngón
+    var inLightbox = false; // cử chỉ bắt đầu trong LightGallery
+    var swallow = false;   // cử chỉ trong LightGallery đã thành chụm: giấu sự kiện chạm khỏi thư viện
     var session = null;    // cử chỉ chụm đang chạy
     var returning = null;  // bản sao đang trượt về chỗ cũ
     var suppressClickUntil = 0;
@@ -81,6 +86,7 @@
         document.body.appendChild(backdrop);
         document.body.appendChild(clone);
         el.classList.add('pz-hidden');
+        if (inLightbox) swallow = true;
         session = { el: el, clone: clone, backdrop: backdrop, rect: rect,
             ids: [a.identifier, b.identifier], d0: d0, p0: midpoint(a, b), moved: false };
     }
@@ -112,12 +118,18 @@
         sess.clone.addEventListener('transitionend', finishReturn, { once: true });
     }
 
+    // Listener của LightGallery nằm trên phần tử của nó; chặn ở capture trên document thì nó không
+    // thấy cử chỉ chụm (lg-zoom không bắt đầu, vuốt không chạy theo ngón còn lại). Riêng touchend
+    // nhấc ngón cuối vẫn cho qua để thư viện tự dọn trạng thái vuốt của ngón đầu.
+    function hide(e) { if (swallow) e.stopPropagation(); }
+
     function onStart(e) {
-        if (session) { cancel(e); return; }
+        if (session) { cancel(e); hide(e); return; }
         if (tracking && e.touches.length === 2) {
             cancel(e);
             begin(tracking, e.touches[0], e.touches[1]);
         }
+        hide(e);
     }
 
     function onTargetStart(e) {
@@ -129,6 +141,7 @@
     }
 
     function onMove(e) {
+        hide(e);
         if (!session) return;
         cancel(e);
         var a = findTouch(e.touches, session.ids[0]), b = findTouch(e.touches, session.ids[1]);
@@ -139,8 +152,29 @@
         if (session && !(findTouch(e.touches, session.ids[0]) && findTouch(e.touches, session.ids[1]))) end();
         if (!e.touches.length) {
             tracking = null;
+            inLightbox = swallow = false;
             listenDocument(false);
-        }
+        } else hide(e);
+    }
+
+    // Ngón đầu đặt trong lightbox: ảnh đang xem là ảnh được chụm. Gắn ở capture của .lg-container
+    // để chạy trước listener của thư viện trên .lg-outer.
+    function onLightboxStart(e) {
+        if (tracking) return;
+        var img = e.currentTarget.querySelector('.lg-current .lg-image');
+        if (!img || !img.complete) return;
+        tracking = img;
+        inLightbox = true;
+        listenDocument(true);
+        onStart(e);
+    }
+
+    function bindLightbox() {
+        document.querySelectorAll('.lg-container').forEach(function (box) {
+            if (box.pzBound) return;
+            box.pzBound = true;
+            box.addEventListener('touchstart', onLightboxStart, { capture: true, passive: false });
+        });
     }
 
     // iOS/WebKit phóng cả trang qua gesture event riêng; chặn khi cử chỉ đã thuộc về một ảnh
@@ -172,6 +206,9 @@
             el.addEventListener('touchstart', onTargetStart, { passive: false });
         });
     }
+
+    // LightGallery dựng .lg-container lúc mở lần đầu (ảnh QR thì dựng mới mỗi lần)
+    document.addEventListener('lgAfterOpen', bindLightbox, true);
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
     else bind();

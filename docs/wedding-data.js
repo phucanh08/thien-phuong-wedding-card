@@ -16,7 +16,7 @@ window.WEDDING_DATA = {
             shortName: "Thiện",
             birthday: "TODO: dd/mm/yyyy",
             bio: "TODO: vài dòng giới thiệu về chú rể.",
-            photo: "assets/images/photos/photo-16-small.jpg",
+            photo: "assets/images/photos/photo-16-small.webp",
             father: "Nguyễn Đức Long",
             mother: "Hồ Thị Huế",
             address: "Số 63, đường Đền Trình Tuyết Sơn, Phú Yên, Hương Sơn, Mỹ Đức, Hà Nội",
@@ -27,7 +27,7 @@ window.WEDDING_DATA = {
             shortName: "Phương",
             birthday: "TODO: dd/mm/yyyy",
             bio: "TODO: vài dòng giới thiệu về cô dâu.",
-            photo: "assets/images/photos/photo-01-small.jpg",
+            photo: "assets/images/photos/photo-01-small.webp",
             father: "TODO: tên bố cô dâu",
             mother: "TODO: tên mẹ cô dâu",
             address: "TODO: địa chỉ nhà gái",
@@ -39,8 +39,8 @@ window.WEDDING_DATA = {
         dateISO: "2026-10-25", // YYYY-MM-DD
         lunarText: "16 tháng 9 năm Bính Ngọ",
         // tuỳ chọn: ảnh lớn ở banner và ảnh mục Lời Ngỏ
-        mainImage: "assets/images/photos/photo-04-large.jpg",
-        invitationImage: "assets/images/photos/photo-14-large.jpg",
+        mainImage: "assets/images/photos/photo-04-large.webp",
+        invitationImage: "assets/images/photos/photo-14-large.webp",
         // tuỳ chọn: lời ngỏ, mỗi phần tử là một dòng
         invitationText: [
             "TODO: lời ngỏ gửi bạn bè, người thân.",
@@ -60,7 +60,7 @@ window.WEDDING_DATA = {
             venue: "Tư gia nhà trai",
             address: "Số 63, đường Đền Trình Tuyết Sơn, Phú Yên, Hương Sơn, Mỹ Đức, Hà Nội",
             mapUrl: "https://www.google.com/maps/search/?api=1&query=S%E1%BB%91%2063%2C%20%C4%91%C6%B0%E1%BB%9Dng%20%C4%90%E1%BB%81n%20Tr%C3%ACnh%20Tuy%E1%BA%BFt%20S%C6%A1n%2C%20Ph%C3%BA%20Y%C3%AAn%2C%20H%C6%B0%C6%A1ng%20S%C6%A1n%2C%20M%E1%BB%B9%20%C4%90%E1%BB%A9c%2C%20H%C3%A0%20N%E1%BB%99i",
-            image: "assets/images/photos/photo-10-small.jpg",
+            image: "assets/images/photos/photo-10-small.webp",
             dressCode: ["#32435f", "#ffffff", "#57233a"]
         },
         {
@@ -73,7 +73,7 @@ window.WEDDING_DATA = {
             venue: "Tư gia nhà trai",
             address: "Số 63, đường Đền Trình Tuyết Sơn, Phú Yên, Hương Sơn, Mỹ Đức, Hà Nội",
             mapUrl: "https://www.google.com/maps/search/?api=1&query=S%E1%BB%91%2063%2C%20%C4%91%C6%B0%E1%BB%9Dng%20%C4%90%E1%BB%81n%20Tr%C3%ACnh%20Tuy%E1%BA%BFt%20S%C6%A1n%2C%20Ph%C3%BA%20Y%C3%AAn%2C%20H%C6%B0%C6%A1ng%20S%C6%A1n%2C%20M%E1%BB%B9%20%C4%90%E1%BB%A9c%2C%20H%C3%A0%20N%E1%BB%99i",
-            image: "assets/images/photos/photo-03-small.jpg",
+            image: "assets/images/photos/photo-03-small.webp",
             dressCode: ["#7fb174", "#504e63", "#632a7e"]
         },
         {
@@ -86,7 +86,7 @@ window.WEDDING_DATA = {
             venue: "TODO: tư gia nhà gái",
             address: "TODO: địa chỉ nhà gái",
             mapUrl: "https://maps.google.com/?q=TODO",
-            image: "assets/images/photos/photo-11-small.jpg",
+            image: "assets/images/photos/photo-11-small.webp",
             dressCode: ["#504e63", "#cc8a4d", "#bc5f6a"]
         },
         {
@@ -99,38 +99,38 @@ window.WEDDING_DATA = {
             venue: "TODO: tư gia nhà gái",
             address: "TODO: địa chỉ nhà gái",
             mapUrl: "https://maps.google.com/?q=TODO",
-            image: "assets/images/photos/photo-06-small.jpg",
+            image: "assets/images/photos/photo-06-small.webp",
             dressCode: ["#eda2b6", "#ffffff", "#623262"]
         }
     ],
 
     story: [
-        { date: "TODO: ngày", title: "TODO: lần đầu gặp nhau", text: "TODO: kể lại khoảnh khắc đầu tiên.", image: "assets/images/photos/photo-12-small.jpg" },
-        { date: "TODO: ngày", title: "TODO: lời tỏ tình", text: "TODO: kể lại lời tỏ tình.", image: "assets/images/photos/photo-13-small.jpg" },
-        { date: "TODO: ngày", title: "TODO: cầu hôn", text: "TODO: kể lại lần cầu hôn.", image: "assets/images/photos/photo-15-small.jpg" },
-        { date: "TODO: ngày", title: "TODO: lễ đính hôn", text: "TODO: kể lại lễ đính hôn.", image: "assets/images/photos/photo-09-small.jpg" }
+        { date: "TODO: ngày", title: "TODO: lần đầu gặp nhau", text: "TODO: kể lại khoảnh khắc đầu tiên.", image: "assets/images/photos/photo-12-small.webp" },
+        { date: "TODO: ngày", title: "TODO: lời tỏ tình", text: "TODO: kể lại lời tỏ tình.", image: "assets/images/photos/photo-13-small.webp" },
+        { date: "TODO: ngày", title: "TODO: cầu hôn", text: "TODO: kể lại lần cầu hôn.", image: "assets/images/photos/photo-15-small.webp" },
+        { date: "TODO: ngày", title: "TODO: lễ đính hôn", text: "TODO: kể lại lễ đính hôn.", image: "assets/images/photos/photo-09-small.webp" }
     ],
 
     // caption (tuỳ chọn): chú thích khi mở ảnh lớn; bỏ trống thì dùng câu trích dẫn mặc định
     // featured: true -> hiện ở lưới trên trang (không item nào featured thì lấy 6 item đầu); "Tất cả hình ảnh" và lightbox mở toàn bộ.
     gallery: [
-        { small: "assets/images/photos/photo-01-small.jpg", large: "assets/images/photos/photo-01-large.jpg", featured: true },
-        { small: "assets/images/photos/photo-02-small.jpg", large: "assets/images/photos/photo-02-large.jpg" },
-        { small: "assets/images/photos/photo-03-small.jpg", large: "assets/images/photos/photo-03-large.jpg", featured: true },
-        { small: "assets/images/photos/photo-04-small.jpg", large: "assets/images/photos/photo-04-large.jpg", featured: true },
-        { small: "assets/images/photos/photo-05-small.jpg", large: "assets/images/photos/photo-05-large.jpg" },
-        { small: "assets/images/photos/photo-06-small.jpg", large: "assets/images/photos/photo-06-large.jpg" },
-        { small: "assets/images/photos/photo-07-small.jpg", large: "assets/images/photos/photo-07-large.jpg" },
-        { small: "assets/images/photos/photo-08-small.jpg", large: "assets/images/photos/photo-08-large.jpg" },
-        { small: "assets/images/photos/photo-09-small.jpg", large: "assets/images/photos/photo-09-large.jpg" },
-        { small: "assets/images/photos/photo-10-small.jpg", large: "assets/images/photos/photo-10-large.jpg" },
-        { small: "assets/images/photos/photo-11-small.jpg", large: "assets/images/photos/photo-11-large.jpg" },
-        { small: "assets/images/photos/photo-12-small.jpg", large: "assets/images/photos/photo-12-large.jpg", featured: true },
-        { small: "assets/images/photos/photo-13-small.jpg", large: "assets/images/photos/photo-13-large.jpg", featured: true },
-        { small: "assets/images/photos/photo-14-small.jpg", large: "assets/images/photos/photo-14-large.jpg", featured: true },
-        { small: "assets/images/photos/photo-15-small.jpg", large: "assets/images/photos/photo-15-large.jpg", featured: true },
-        { small: "assets/images/photos/photo-16-small.jpg", large: "assets/images/photos/photo-16-large.jpg", featured: true },
-        { small: "assets/images/photos/photo-17-small.jpg", large: "assets/images/photos/photo-17-large.jpg" }
+        { small: "assets/images/photos/photo-01-small.webp", large: "assets/images/photos/photo-01-large.webp", featured: true },
+        { small: "assets/images/photos/photo-02-small.webp", large: "assets/images/photos/photo-02-large.webp" },
+        { small: "assets/images/photos/photo-03-small.webp", large: "assets/images/photos/photo-03-large.webp", featured: true },
+        { small: "assets/images/photos/photo-04-small.webp", large: "assets/images/photos/photo-04-large.webp", featured: true },
+        { small: "assets/images/photos/photo-05-small.webp", large: "assets/images/photos/photo-05-large.webp" },
+        { small: "assets/images/photos/photo-06-small.webp", large: "assets/images/photos/photo-06-large.webp" },
+        { small: "assets/images/photos/photo-07-small.webp", large: "assets/images/photos/photo-07-large.webp" },
+        { small: "assets/images/photos/photo-08-small.webp", large: "assets/images/photos/photo-08-large.webp" },
+        { small: "assets/images/photos/photo-09-small.webp", large: "assets/images/photos/photo-09-large.webp" },
+        { small: "assets/images/photos/photo-10-small.webp", large: "assets/images/photos/photo-10-large.webp" },
+        { small: "assets/images/photos/photo-11-small.webp", large: "assets/images/photos/photo-11-large.webp" },
+        { small: "assets/images/photos/photo-12-small.webp", large: "assets/images/photos/photo-12-large.webp", featured: true },
+        { small: "assets/images/photos/photo-13-small.webp", large: "assets/images/photos/photo-13-large.webp", featured: true },
+        { small: "assets/images/photos/photo-14-small.webp", large: "assets/images/photos/photo-14-large.webp", featured: true },
+        { small: "assets/images/photos/photo-15-small.webp", large: "assets/images/photos/photo-15-large.webp", featured: true },
+        { small: "assets/images/photos/photo-16-small.webp", large: "assets/images/photos/photo-16-large.webp", featured: true },
+        { small: "assets/images/photos/photo-17-small.webp", large: "assets/images/photos/photo-17-large.webp" }
     ],
 
     video: null, // { youtubeId: "..." } để hiện mục Video Cưới

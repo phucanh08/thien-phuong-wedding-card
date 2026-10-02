@@ -4,7 +4,7 @@
 //   const { data, source } = await loadWeddingContent();  // source: 'published' | 'fallback'
 //
 // Chỉ reject khi cả wedding-data.js cũng không nạp được. Cả trang phải dùng đúng một `data` trả về,
-// không trộn hai nguồn.
+// không trộn hai nguồn. `data` đã qua normalize(): đủ shape WEDDING_DATA, URL/màu sai đã bị bỏ.
 // Đọc qua Firestore REST (một fetch) thay vì SDK: không phải tải SDK trước khi vẽ thiệp, và không
 // đụng instance Firestore của firebase-config.js (nối emulator chỉ được làm một lần).
 import { FIREBASE_CONFIG, FIRESTORE_EMULATOR_PORT, USE_EMULATOR } from './firebase-shared.js';
@@ -15,19 +15,24 @@ const FALLBACK_SCRIPT = new URL('./wedding-data.js', import.meta.url).href;
 const FIRESTORE_ORIGIN = USE_EMULATOR
     ? `http://127.0.0.1:${FIRESTORE_EMULATOR_PORT}`
     : 'https://firestore.googleapis.com';
+// Không gắn ?key=: rules cho ai cũng get siteContent/published, khỏi phụ thuộc giới hạn của API key
 const PUBLISHED_URL = `${FIRESTORE_ORIGIN}/v1/projects/${FIREBASE_CONFIG.projectId}`
-    + `/databases/(default)/documents/siteContent/published?key=${FIREBASE_CONFIG.apiKey}`;
+    + '/databases/(default)/documents/siteContent/published';
+
+// wedding-data.js trang đã nạp sẵn, lấy lúc module chạy: trang sẽ ghi đè window.WEDDING_DATA bằng
+// nội dung đang dùng, gọi lại loadWeddingContent() vẫn phải ra đúng bản dự phòng
+let fallbackData = window.WEDDING_DATA || null;
 
 export async function loadWeddingContent({ timeoutMs = TIMEOUT_MS } = {}) {
     try {
         const data = await fetchPublished(timeoutMs);
         const problem = findMissingField(data);
-        if (!problem) return { data, source: 'published' };
+        if (!problem) return { data: normalize(data), source: 'published' };
         console.warn('Bản xuất bản thiếu dữ liệu, dùng nội dung dự phòng:', problem);
     } catch (error) {
         console.warn('Không đọc được bản xuất bản, dùng nội dung dự phòng:', error.message);
     }
-    return { data: await loadFallback(), source: 'fallback' };
+    return { data: normalize(await loadFallback()), source: 'fallback' };
 }
 
 async function fetchPublished(timeoutMs) {
@@ -64,32 +69,21 @@ function decodeValue(value) {
     return undefined;
 }
 
-// Field bắt buộc của shape WEDDING_DATA (C2): những gì thiệp đọc mà không có giá trị thay thế.
-// Field tuỳ chọn chỉ kiểm kiểu khi thiệp duyệt qua nó (invitationText, dressCode là mảng; video có
-// youtubeId); facebook, mainImage, note, caption, featured, branch... không kiểm.
+const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+// Bản xuất bản hợp lệ (CLAUDE.md mục 6): chỉ cần tên ngắn hai bên, ngày cưới và mỗi sự kiện có
+// key/title/startISO. Mảng được rỗng; field khác thiếu thì normalize() điền mặc định.
 // Trả tên field hỏng đầu tiên, hoặc null nếu hợp lệ.
 function findMissingField(data) {
-    const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
-    const isText = v => typeof v === 'string';
-    const isDate = v => isText(v) && /^\d{4}-\d{2}-\d{2}/.test(v);
-    const optionalList = v => v == null || (Array.isArray(v) && v.every(isText));
+    const isText = v => typeof v === 'string' && v.trim() !== '';
+    const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v);
     const checks = [
         ['data', () => isObject(data)],
-        ['meta', () => ['title', 'description', 'previewImage', 'favicon'].every(k => isText(data.meta[k]))],
-        ...['groom', 'bride'].map(side => [`couple.${side}`, () =>
-            ['fullName', 'shortName', 'photo', 'father', 'mother', 'bio'].every(k => isText(data.couple[side][k]))]),
+        ['couple.groom.shortName', () => isText(data.couple.groom.shortName)],
+        ['couple.bride.shortName', () => isText(data.couple.bride.shortName)],
         ['wedding.dateISO', () => isDate(data.wedding.dateISO)],
-        ['wedding.invitationText', () => optionalList(data.wedding.invitationText)],
-        ['events', () => data.events.length > 0 && data.events.every(e =>
-            ['key', 'title', 'side', 'venue', 'address', 'mapUrl', 'image'].every(k => isText(e[k]))
-            && isDate(e.startISO) && isDate(e.endISO) && optionalList(e.dressCode))],
-        ['story', () => Array.isArray(data.story) && data.story.every(s =>
-            ['date', 'title', 'text'].every(k => isText(s[k])))],
-        ['gallery', () => data.gallery.length > 0 && data.gallery.every(g => isText(g.small) && isText(g.large))],
-        ...['groom', 'bride'].map(side => [`donate.${side}`, () =>
-            ['bank', 'accountName', 'accountNumber', 'qr'].every(k => isText(data.donate[side][k]))]),
-        ['music.src', () => isText(data.music.src)],
-        ['video', () => data.video == null || isText(data.video.youtubeId)]
+        ['events', () => data.events == null || (Array.isArray(data.events) && data.events.every(e =>
+            isObject(e) && isText(e.key) && isText(e.title) && isDate(e.startISO)))]
     ];
     for (const [field, ok] of checks) {
         try {
@@ -101,13 +95,72 @@ function findMissingField(data) {
     return null;
 }
 
-// Trang đã nạp sẵn wedding-data.js thì dùng luôn; chưa thì nạp nó.
+// URL trong dữ liệu chỉ https:/http: hoặc đường dẫn tương đối (C6); giá trị khác -> '' (không hiển thị).
+// Parse như trình duyệt (bỏ khoảng trắng, tab trong scheme...) nên "java\tscript:" cũng bị chặn.
+// URL thật không chứa nháy, \, <>, ký tự điều khiển; có thì là chuỗi định thoát khỏi thuộc tính/CSS.
+function safeUrl(value) {
+    if (typeof value !== 'string' || !value.trim() || /["'`<>\\\u0000-\u001f]/.test(value.trim())) return '';
+    try {
+        return ['https:', 'http:'].includes(new URL(value, 'https://relative.invalid/').protocol) ? value.trim() : '';
+    } catch {
+        return '';
+    }
+}
+
+// Đưa dữ liệu về đúng shape WEDDING_DATA mà thiệp đọc: field thiếu/sai kiểu -> mặc định rỗng,
+// URL và mã màu sai -> bỏ. Giữ nguyên field lạ. Không sửa object gốc.
+function normalize(source) {
+    const data = JSON.parse(JSON.stringify(source));
+    const text = v => typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
+    const obj = v => isObject(v) ? v : {};
+    const list = v => Array.isArray(v) ? v : [];
+    const fill = (target, textKeys, urlKeys = []) => {
+        textKeys.forEach(k => { target[k] = text(target[k]); });
+        urlKeys.forEach(k => { target[k] = safeUrl(target[k]); });
+        return target;
+    };
+
+    data.meta = fill(obj(data.meta), ['title', 'description'], ['previewImage', 'favicon']);
+    data.couple = obj(data.couple);
+    ['groom', 'bride'].forEach(side => {
+        const p = data.couple[side] = fill(obj(data.couple[side]),
+            ['fullName', 'shortName', 'father', 'mother', 'bio'], ['photo']);
+        if (!p.fullName) p.fullName = p.shortName;
+        p.facebook = safeUrl(p.facebook) || null;
+    });
+    data.wedding = fill(obj(data.wedding), ['dateISO', 'lunarText'], ['mainImage', 'invitationImage']);
+    data.wedding.invitationText = list(data.wedding.invitationText).map(text);
+    data.events = list(data.events).map(e => {
+        const event = fill(obj(e), ['key', 'title', 'side', 'venue', 'address', 'startISO', 'endISO', 'lunarText', 'note'],
+            ['mapUrl', 'image']);
+        event.dressCode = list(event.dressCode).filter(c => typeof c === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(c));
+        return event;
+    });
+    data.story = list(data.story).filter(isObject).map(s => fill(s, ['date', 'title', 'text'], ['image']));
+    data.gallery = list(data.gallery).filter(isObject).map(g => fill(g, ['caption'], ['small', 'large']))
+        .filter(g => g.small || g.large)
+        .map(g => Object.assign(g, { small: g.small || g.large, large: g.large || g.small }));
+    data.donate = obj(data.donate);
+    ['groom', 'bride'].forEach(side => {
+        data.donate[side] = fill(obj(data.donate[side]), ['bank', 'accountName', 'accountNumber', 'branch'], ['qr']);
+    });
+    data.music = fill(obj(data.music), ['title'], ['src']);
+    data.video = isObject(data.video) && typeof data.video.youtubeId === 'string' && data.video.youtubeId
+        ? data.video : null;
+    return data;
+}
+
+// Trang đã nạp sẵn wedding-data.js thì dùng luôn; chưa thì nạp nó (một lần).
 function loadFallback() {
-    if (window.WEDDING_DATA) return Promise.resolve(window.WEDDING_DATA);
+    if (fallbackData) return Promise.resolve(fallbackData);
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = FALLBACK_SCRIPT;
-        script.onload = () => resolve(window.WEDDING_DATA);
+        script.onload = () => {
+            fallbackData = window.WEDDING_DATA || null;
+            if (fallbackData) resolve(fallbackData);
+            else reject(new Error('wedding-data.js không có WEDDING_DATA'));
+        };
         script.onerror = () => reject(new Error('Không nạp được wedding-data.js'));
         document.head.appendChild(script);
     });

@@ -119,6 +119,12 @@ và báo "bad CPU type". Dùng `/usr/bin/python3`, `/usr/bin/ruby`, `sips`, `git
      `siteContentHistory` chỉ thêm mới, không sửa (xoá được bởi admin). Khi xuất bản, bản
      `published` cũ được chép sang lịch sử với `publishedBy` = **admin đang xuất bản bản mới**
      (người tạo bản sao lưu), `publishedAt` = `updatedAt` cũ của bản đó.
+   - Bản xuất bản **hợp lệ** khi `data` có: `couple.groom.shortName`, `couple.bride.shortName`,
+     `wedding.dateISO`, và mỗi phần tử `events` có `key`, `title`, `startISO`. Mảng (`events`,
+     `story`, `gallery`) được rỗng; object/field khác thiếu → dùng mặc định, **không** coi là hỏng.
+     Trình sửa nội dung phải kiểm đúng danh sách này trước khi cho xuất bản.
+   - URL trong `data` (ảnh, `mapUrl`, `facebook`, nhạc) chỉ `https:`/`http:` hoặc đường dẫn tương
+     đối; `dressCode` chỉ mã màu `#rgb`/`#rrggbb`. Thiệp bỏ qua giá trị sai thay vì hiển thị.
    - Thiệp: dùng `published.data` nếu đọc được trong thời gian chờ ngắn; không được → dùng
      `docs/wedding-data.js` (dự phòng, vẫn giữ trong repo). Xuất bản đầu tiên = nội dung
      `wedding-data.js` hiện tại.

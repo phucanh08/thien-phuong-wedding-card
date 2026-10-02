@@ -138,18 +138,16 @@ window.WEDDING_DATA = {
 
     donate: {
         groom: {
-            bank: "TODO: ngân hàng",
-            accountName: "TODO: TEN CHU TAI KHOAN",
-            accountNumber: "TODO: số tài khoản",
-            qr: "assets/images/placeholder/qr.svg",
-            branch: "TODO: chi nhánh" // tuỳ chọn
+            bank: "MB Bank (Ngân hàng Quân Đội)",
+            accountName: "NGUYEN DUC THIEN",
+            accountNumber: "608062626",
+            qr: "assets/images/qr/groom.webp"
         },
         bride: {
-            bank: "TODO: ngân hàng",
-            accountName: "TODO: TEN CHU TAI KHOAN",
-            accountNumber: "TODO: số tài khoản",
-            qr: "assets/images/placeholder/qr.svg",
-            branch: "TODO: chi nhánh"
+            bank: "Techcombank",
+            accountName: "TRIEU THI PHUONG",
+            accountNumber: "6366661998",
+            qr: "assets/images/qr/bride.webp"
         }
     },
 

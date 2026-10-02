@@ -143,3 +143,7 @@ bản x86_64 và chạy bình thường. Phục vụ web tĩnh vẫn dùng `/usr
    - Phiên bản thiệp (Human chọn 2026-10-02): field tuỳ chọn `site.version` ∈ `"v1"` | `"v2"` |
      `"both"`, thiếu/sai → `"v1"`. `/` và `/?code=` mở bản theo `published`; `"both"` → trang chọn
      giữ `?code=`/`#hash`; không đọc được → `v1`. `/v1/`, `/v2/` mở trực tiếp luôn được.
+   - Lưới ảnh (Human chọn 2026-10-02): một album chung `gallery`; `featured: true` = ảnh ở lưới v1
+     (không ảnh nào → 6 ảnh đầu); field tuỳ chọn `featuredV2: true` = ảnh ở băng ảnh Album v2
+     (không ảnh nào → như lưới v1). Ảnh bìa v2 thiếu `wedding.coverImages` → lấy từ lưới v2.
+     "Tất cả hình ảnh"/xem ảnh lớn mở cả album theo thứ tự album ở cả hai bản.

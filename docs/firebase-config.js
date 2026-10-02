@@ -16,19 +16,7 @@ import {
     serverTimestamp,
     setDoc
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-
-// Web config là public by design; quyền nằm ở firestore.rules.
-const firebaseConfig = {
-    apiKey: 'AIzaSyCbKOo2igl5jHWg791u_5wBHpF9ugqeFwo',
-    authDomain: 'thien-phuong-wedding-1025.firebaseapp.com',
-    projectId: 'thien-phuong-wedding-1025',
-    storageBucket: 'thien-phuong-wedding-1025.firebasestorage.app',
-    messagingSenderId: '630659527776',
-    appId: '1:630659527776:web:c42178613083d09f34ff05'
-};
-
-// Mở thiệp ở localhost / 127.0.0.1 thì nối Firestore emulator, không chạm dữ liệu thật.
-const FIRESTORE_EMULATOR = { host: '127.0.0.1', port: 8282 };
+import { FIREBASE_CONFIG, FIRESTORE_EMULATOR_PORT, USE_EMULATOR } from './firebase-shared.js';
 
 const GUEST_CODE_PATTERN = /^[a-z2-9]{8}$/;
 const WISH_NAME_MAX = 60;
@@ -40,10 +28,11 @@ const LOOKUP_RETRY_TIMEOUT_MS = 4000;
 const WRITE_TIMEOUT_MS = 8000;
 const ATTENDING_BY_OPTION = { Y: 'yes', N: 'no', none: 'maybe' };
 
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
-if (['localhost', '127.0.0.1'].includes(location.hostname)) {
-    connectFirestoreEmulator(db, FIRESTORE_EMULATOR.host, FIRESTORE_EMULATOR.port);
+// Mở thiệp ở localhost / 127.0.0.1 thì nối Firestore emulator.
+if (USE_EMULATOR) {
+    connectFirestoreEmulator(db, '127.0.0.1', FIRESTORE_EMULATOR_PORT);
 }
 
 // ===== Chào khách =====

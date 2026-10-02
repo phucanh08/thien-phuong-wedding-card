@@ -10,22 +10,9 @@ import {
   getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, updateDoc,
   collection, onSnapshot, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-
-// Web config là public theo thiết kế của Firebase; quyền nằm ở firestore.rules.
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCbKOo2igl5jHWg791u_5wBHpF9ugqeFwo",
-  authDomain: "thien-phuong-wedding-1025.firebaseapp.com",
-  projectId: "thien-phuong-wedding-1025",
-  storageBucket: "thien-phuong-wedding-1025.firebasestorage.app",
-  messagingSenderId: "630659527776",
-  appId: "1:630659527776:web:c42178613083d09f34ff05",
-};
-
-// Chạy trên localhost/127.0.0.1 thì dùng emulator, không bao giờ chạm Firebase thật.
-const EMULATOR_HOSTS = ["localhost", "127.0.0.1"];
-const AUTH_EMULATOR_PORT = 9199;
-const FIRESTORE_EMULATOR_PORT = 8282;
-const USE_EMULATOR = EMULATOR_HOSTS.includes(location.hostname);
+import {
+  FIREBASE_CONFIG, AUTH_EMULATOR_PORT, FIRESTORE_EMULATOR_PORT, USE_EMULATOR,
+} from "../firebase-shared.js";
 
 const USERNAME_DOMAIN = "thien-phuong-wedding.local";
 const USERNAME_PATTERN = /^[a-z0-9._-]{3,30}$/;

@@ -3,7 +3,7 @@
 // Sửa trực tiếp trên một bản sao của data nên field không có ô sửa (field lạ, video...) giữ nguyên.
 import { createContentStore, UNKNOWN_PUBLISHED } from "./content-store.js";
 import { createPreview } from "./content-preview.js";
-import { validateContent, getPath, setPath, splitISO, joinISO } from "./content-model.js";
+import { validateContent, getPath, setPath, splitISO, joinISO, cardVersion, CARD_VERSIONS } from "./content-model.js";
 import { createImagePicker } from "./image-picker.js";
 import { uploadToWorker } from "./image-upload.js";
 
@@ -48,6 +48,15 @@ const SECTIONS = {
     where: "Phát khi khách chạm mở thiệp, bật/tắt bằng nút loa ở góc màn hình. Tải lên MP3 hoặc M4A, tối đa 10 MB.",
   },
 };
+
+// site.version: thiệp khách vào từ link mời (docs/index.html).
+const VERSION_LABEL = {
+  v1: "V1 · Thiệp truyền thống",
+  v2: "V2 · Thiệp Nhà Có Hỷ",
+  both: "Cả 2 · khách tự chọn",
+};
+const VERSION_HINT = "Khách mở link mời (kể cả link có mã khách) sẽ vào thiệp này sau khi Xuất bản; "
+  + "“Cả 2” cho khách tự chọn, còn ô v1/v2 ở khung xem trước chỉ để xem thử.";
 
 const ORIGIN_LABEL = {
   draft: "Đang sửa bản nháp đã lưu",
@@ -536,6 +545,30 @@ export function createContentSection({ db, getUser, getIdToken }) {
     return box;
   }
 
+  // Phiên bản thiệp dùng chung cho mọi khách (site.version, C6). Thiếu hoặc sai giá trị thì thiệp
+  // dùng v1, nên ô hiện v1; chỉ ghi khi người dùng chọn. Không đổi bản đang xem trước.
+  function renderVersion(parent) {
+    const box = el("div", "content-version");
+    const id = nextId("f");
+    const { wrap, body, feedback } = fieldShell(box, "Phiên bản thiệp", VERSION_HINT, id);
+    const select = el("select", "form-select");
+    select.id = id;
+    select.dataset.path = "site.version";
+    for (const value of CARD_VERSIONS) {
+      const option = el("option", "", VERSION_LABEL[value]);
+      option.value = value;
+      select.append(option);
+    }
+    select.value = cardVersion(state.data);
+    select.addEventListener("change", () => {
+      setPath(state.data, "site.version", select.value);
+      changed();
+    });
+    body.append(select);
+    register("site.version", "Phiên bản thiệp", wrap, [select], feedback);
+    parent.append(box);
+  }
+
   function renderMeta(parent) {
     const body = sectionCard(parent, "meta");
     textField(body, { path: "meta.title", label: "Tiêu đề", hint: "Tên tab trình duyệt và tiêu đề khung xem trước link." });
@@ -804,6 +837,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
         state.data[key] = ["events", "story", "gallery"].includes(key) ? [] : {};
       }
     }
+    renderVersion(form);
     renderCouple(form);
     renderWedding(form);
     renderEvents(form);

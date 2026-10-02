@@ -277,3 +277,14 @@
   }
   .content-preview-close { display: none; }
 }
+
+/* Phiên bản thiệp (site.version): ô riêng trên cùng, không gập như các mục nội dung. */
+.content-version {
+  padding: .85rem 1rem 1rem;
+  background: #fff;
+  border: 1px solid #eee4e7;
+  border-left: 4px solid var(--rose-dark);
+  border-radius: .75rem;
+}
+.content-version .form-label { font-weight: 600; }
+.content-version .form-select { max-width: 22rem; }

@@ -2,7 +2,9 @@
 <html lang="vi" class="v2-locked">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <!-- Không phóng cả trang (chỉ ảnh phóng được, pinch-zoom.js); Safari iOS bỏ qua user-scalable nên
+         no-page-zoom.js chặn thêm -->
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
     <!-- Trang nằm ở docs/v2/; tài nguyên dùng chung ở docs/ nên mọi đường dẫn tương đối tính từ ../ -->
     <base href="../">
@@ -17,7 +19,8 @@
             if (hash.length > 1) location.hash = hash; else window.scrollTo(0, 0);
         });
     </script>
-    <!-- Title/description/og:* được điền từ nội dung thiệp (applyMeta trong v2/v2.js) -->
+    <script src="no-page-zoom.js"></script>
+    <!-- Title/description/og:* được điền từ nội dung thiệp (applyMeta trong v2/card.js) -->
     <title>Wedding</title>
     <meta name="description" content="">
     <meta name="keywords" content="">
@@ -44,6 +47,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Cormorant+Garamond:wght@300;500;600&family=Great+Vibes&family=Imperial+Script&family=Lobster&family=Philosopher:ital,wght@0,400;0,700;1,400&family=Quicksand:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="templates/template135/lightgallery/css/lightgallery-bundle.css">
+    <link rel="stylesheet" href="pinch-zoom.css">
+    <link rel="stylesheet" href="lightbox-close.css">
     <link rel="stylesheet" href="v2/v2.css">
 </head>
 <body>
@@ -54,7 +59,7 @@
         <img class="v2-envelope__firework v2-envelope__firework--bottom" src="v2/assets/firework.webp" alt="" aria-hidden="true">
         <div class="v2-envelope__intro">
             <p class="v2-envelope__label">Trân trọng kính mời</p>
-            <!-- Tên khách theo ?code= điền vào mọi [data-guest-name] (v2.js); không có thì giữ "Quý Khách" -->
+            <!-- Tên khách theo ?code= điền vào mọi [data-guest-name] (v2/card.js); không có thì giữ "Quý Khách" -->
             <p class="v2-envelope__guest" data-guest-name>Quý Khách</p>
             <p class="v2-envelope__message">Đến dự buổi tiệc chung vui cùng gia đình</p>
         </div>
@@ -98,7 +103,7 @@
         <!-- ===== 1. Banner đôi ===== -->
         <section class="v2-couple" aria-label="Cô dâu chú rể">
             <p class="v2-couple__heading">OUR WEDDING</p>
-            <div class="v2-couple__banner"><img data-wd-img="main" alt=""></div>
+            <div class="v2-couple__banner"><img data-wd-img="main" data-pinch-zoom alt=""></div>
             <div class="v2-couple__content">
                 <div class="v2-couple__names">
                     <p class="v2-couple__name" data-wd="groom-short"></p>
@@ -150,7 +155,7 @@
             </div>
             <div class="v2-lovestory__card">
                 <figure class="v2-lovestory__portrait">
-                    <img data-wd-img="invitation" alt="">
+                    <img data-wd-img="invitation" data-pinch-zoom alt="">
                     <figcaption aria-hidden="true">My Love</figcaption>
                 </figure>
                 <div class="v2-calendar">
@@ -182,10 +187,10 @@
         <!-- ===== 5. Ảnh ghép "WITH YOU" ===== -->
         <section class="v2-cover" aria-label="Ảnh cưới">
             <div class="v2-cover__layout">
-                <figure class="v2-cover__photo v2-cover__photo--hero" data-reveal="fade-up"><img data-cover="0" alt=""></figure>
+                <figure class="v2-cover__photo v2-cover__photo--hero" data-reveal="fade-up"><img data-cover="0" data-pinch-zoom alt=""></figure>
                 <p class="v2-cover__words" data-reveal="fade-right" aria-hidden="true">WITH YOU</p>
-                <figure class="v2-cover__photo v2-cover__photo--left" data-reveal="fade-right"><img data-cover="1" alt=""></figure>
-                <figure class="v2-cover__photo v2-cover__photo--right" data-reveal="fade-left"><img data-cover="2" alt=""></figure>
+                <figure class="v2-cover__photo v2-cover__photo--left" data-reveal="fade-right"><img data-cover="1" data-pinch-zoom alt=""></figure>
+                <figure class="v2-cover__photo v2-cover__photo--right" data-reveal="fade-left"><img data-cover="2" data-pinch-zoom alt=""></figure>
             </div>
         </section>
 
@@ -309,6 +314,8 @@
         </form>
     </section>
 
+    <!-- card.js là script thường (phong bì mở được cả khi module lỗi); v2.js nối bản xuất bản + Firestore -->
+    <script src="v2/card.js"></script>
     <script type="module" src="v2/v2.js"></script>
 </body>
 </html>

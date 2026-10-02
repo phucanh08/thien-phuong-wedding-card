@@ -11,6 +11,9 @@ import { toFirestoreValue } from "./content-model.js";
 
 const DEBOUNCE_MS = 450;
 const READY_TIMEOUT_MS = 10000;
+const SETTLE_MS = 400;
+const LARGE_WAIT_MS = 150; // bản lớn đã có trong cache đổi trong vài chục ms; băng ảnh Album có ảnh không bao giờ đổi
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const SITE_ROOT = new URL("../", import.meta.url);
 
 // Phần tử neo của từng mục trên thiệp ("Xem phần này" khi chưa bấm ô nào trong mục). "" = đầu thiệp.
@@ -152,6 +155,7 @@ export function createPreview({ container, onState }) {
   let generation = 0;
   let current = null;
   let wanted = null; // { section, path } người sửa yêu cầu tới, khung chưa tới được
+  let asked = null; // yêu cầu tới chỗ nào gần nhất (bấm ô / "Xem phần này"), kể cả yêu cầu khung cũ đã tới
 
   async function pageHtml() {
     if (html === null) {
@@ -170,13 +174,14 @@ export function createPreview({ container, onState }) {
       } catch {
         // iframe đang dựng
       }
-      await new Promise((r) => setTimeout(r, 100));
+      await sleep(25);
     }
     return false;
   }
 
   async function build() {
     const gen = ++generation;
+    const askedAtStart = asked;
     onState?.({ state: "loading" });
     let page;
     try {
@@ -205,28 +210,51 @@ export function createPreview({ container, onState }) {
     }
     const previous = current;
     const win = frame.contentWindow;
+    const alive = () => gen === generation;
+    // Khung mới còn ẩn: tắt chuyển động CSS để nó hiện ra đúng trạng thái cuối (phong bì đã mở, các mục đã
+    // hiện), không mờ dần hay trượt vào lúc thay khung cũ.
+    const still = win.document.createElement("style");
+    still.textContent = "*, *::before, *::after { transition: none !important; }";
+    win.document.head.append(still);
     // Người sửa vừa yêu cầu tới một chỗ mà khung cũ chưa kịp tới: khung mới tới chỗ đó thay khung cũ.
-    if (previous && (previousOpened(previous) || wanted)) await openEnvelope(win, () => gen === generation);
-    if (gen !== generation) {
+    if (previous && (previousOpened(previous) || wanted)) await openEnvelope(win, alive, true);
+    if (!alive()) {
       frame.remove();
       return;
     }
-    // Lấy chỗ đang xem sau cùng (người sửa có thể đã cuộn khung cũ trong lúc khung mới dựng).
-    let position = null;
-    try {
-      position = previous ? viewPosition(previous.contentWindow) : null;
-    } catch {
-      position = null;
-    }
-    if (position) restorePosition(win, position);
-    if (wanted) {
-      const spec = wanted;
+    // Đặt khung mới vào chỗ người sửa vừa yêu cầu tới trong lúc khung mới dựng (bấm ô / "Xem phần này"), không
+    // thì vào chỗ đang xem trên khung cũ. Trả về chỗ đã đặt theo (yêu cầu, hoặc vị trí cuộn của khung cũ).
+    const place = () => {
+      const spec = wanted || (asked !== askedAtStart ? asked : null);
       wanted = null;
-      scrollFrame(win, spec, "auto");
+      if (spec && scrollFrame(win, spec, "auto")) return spec;
+      let position = null;
+      try {
+        position = previous ? viewPosition(previous.contentWindow) : null;
+      } catch {
+        position = null;
+      }
+      if (position) restorePosition(win, position);
+      return position ? position.y : null;
+    };
+    const oldWin = previous?.contentWindow || null;
+    const placed = place();
+    await settle(win, oldWin, alive);
+    if (!alive()) {
+      frame.remove();
+      return;
+    }
+    // Trong lúc chờ, người sửa cuộn khung cũ hoặc yêu cầu tới chỗ khác: đặt lại theo chỗ mới nhất.
+    if (place() !== placed) await settle(win, oldWin, alive);
+    if (!alive()) {
+      frame.remove();
+      return;
     }
     frame.classList.remove("is-pending");
     previous?.remove();
     current = frame;
+    win.getComputedStyle(win.document.body).opacity; // chốt trạng thái cuối trước khi bật lại chuyển động
+    setTimeout(() => still.remove(), 100);
     const source = win.document.documentElement.dataset.contentSource || "";
     onState?.({ state: ready ? "ready" : "slow", source });
   }
@@ -240,27 +268,70 @@ export function createPreview({ container, onState }) {
   }
 
   // Thiệp mở bằng phong bì: đã mở ở bản trước thì mở luôn ở bản mới (chạm giả nút mở).
-  // alive(): còn cần mở không (khung bị thay thì thôi chờ).
-  async function openEnvelope(win, alive) {
+  // alive(): còn cần mở không (khung bị thay thì thôi chờ). instant: khung mới còn ẩn, thiệp mở ngay không
+  // chờ hiệu ứng (v2/card.js đọc window.__contentPreviewInstant).
+  async function openEnvelope(win, alive, instant = false) {
     const button = win.document.getElementById("v2-envelope-open");
     if (!button) return;
+    if (instant) win.__contentPreviewInstant = true;
     button.click();
     const end = Date.now() + 6000;
     while (Date.now() < end && alive()
       && win.document.documentElement.classList.contains("v2-locked")) {
-      await new Promise((r) => setTimeout(r, 100));
+      await sleep(instant ? 20 : 100);
     }
-    await new Promise((r) => setTimeout(r, 1200));
+    if (!instant) await sleep(1200);
   }
 
-  // Mục con chưa có trên thiệp (vd. mốc chuyện tình chưa vẽ) thì tới neo của cả mục.
+  // Chờ khung mới (còn ẩn) xong phần trong khung nhìn: các mục đã được thiệp cho hiện (IntersectionObserver
+  // thêm .is-in), font và ảnh đã tải, ảnh mà khung cũ đang hiện bản lớn (cùng mục) thì khung mới cũng đã đổi
+  // sang bản lớn (thiệp hiện bản nhỏ trước, xem setImgPair), để lúc hiện không mờ, trống hay đổi ảnh; quá
+  // SETTLE_MS (riêng chờ bản lớn: LARGE_WAIT_MS) thì thôi chờ. oldWin: khung đang thấy (null khi chưa có).
+  async function settle(win, oldWin, alive) {
+    const start = Date.now();
+    const end = start + SETTLE_MS;
+    let large = new Set();
+    try {
+      large = new Set([...(oldWin?.document.images || [])].filter((img) => img.src.includes("-large."))
+        .map((img) => imageKey(img, img.src)));
+    } catch {
+      // khung cũ đã bị bỏ
+    }
+    await sleep(20);
+    while (Date.now() < end && alive() && !settled(win, Date.now() - start < LARGE_WAIT_MS ? large : new Set())) {
+      await sleep(20);
+    }
+  }
+
+  // Ảnh theo mục của thiệp chứa nó: cùng một ảnh có thể hiện bản lớn ở mục này, bản nhỏ ở mục khác (băng ảnh).
+  function imageKey(img, src) {
+    const section = img.closest(CARD_SECTIONS);
+    const index = section ? [...img.ownerDocument.querySelectorAll(CARD_SECTIONS)].indexOf(section) : -1;
+    return `${index} ${src}`;
+  }
+
+  function settled(win, large) {
+    const height = win.innerHeight;
+    const inView = (node) => {
+      const r = node.getBoundingClientRect();
+      return r.width > 0 && r.bottom > 0 && r.top < height;
+    };
+    const doc = win.document;
+    return doc.fonts.status === "loaded"
+      && [...doc.querySelectorAll("[data-reveal]")].every((node) => node.classList.contains("is-in") || !inView(node))
+      && [...doc.images].every((img) => !inView(img)
+        || (img.complete && !(img.src.includes("-small.") && large.has(imageKey(img, img.src.replace("-small.", "-large."))))));
+  }
+
+  // Mục con chưa có trên thiệp (vd. mốc chuyện tình chưa vẽ) thì tới neo của cả mục. Trả về đã cuộn chưa.
   function scrollFrame(win, { section, path }, behavior) {
     const selectors = previewTargets(section, path, data);
-    if (!selectors) return;
+    if (!selectors) return false;
     const anchor = PREVIEW_ANCHORS[section];
     const target = selectors.length ? pickTarget(win, selectors) || (anchor && pickTarget(win, [anchor])) : null;
-    if (selectors.length && !target) return;
+    if (selectors.length && !target) return false;
     win.scrollTo({ top: target ? targetTop(win, target) : 0, behavior });
+    return true;
   }
 
   return {
@@ -280,6 +351,7 @@ export function createPreview({ container, onState }) {
       const selectors = previewTargets(section, path, data);
       if (!current || !selectors) return;
       const spec = { section, path };
+      asked = spec;
       const frame = current;
       const win = frame.contentWindow;
       // Thiệp đang đóng phong bì thì mở trước, nội dung mới cuộn được (mục ở đầu thiệp thì giữ phong bì).

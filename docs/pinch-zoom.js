@@ -2,12 +2,14 @@
 // buông tay → ảnh trượt về đúng chỗ cũ (kiểu Instagram). Không giữ zoom: muốn xem lâu thì chạm ảnh
 // album mở LightGallery như cũ.
 // - Một ngón: không chặn gì (cuộn trang, chạm mở lightbox như cũ).
-// - Hai ngón mà không ngón nào chạm ảnh: không chặn, trình duyệt phóng cả trang như bình thường.
+// - Hai ngón mà không ngón nào chạm ảnh: file này không xử lý (phóng cả trang do no-page-zoom.js chặn).
 // - Ảnh gốc giữ nguyên trong layout (chỉ ẩn đi); thứ phóng to là bản sao position:fixed gắn vào body,
 //   nên transform của AOS hay overflow:hidden của khung ảnh không cắt được nó.
 // - Trong LightGallery: hai ngón trên ảnh đang xem cũng dùng cách trên thay cho zoom của lg-zoom
 //   (zoom đó không theo ngón tay và giữ ảnh phóng sau khi buông, làm vuốt chuyển ảnh thành kéo ảnh).
 //   Một ngón (vuốt chuyển ảnh, vuốt dọc đóng, chạm) vẫn để LightGallery xử lý.
+// - Trang đã bị phóng (lọt qua no-page-zoom.js khi chụm lúc trang đang cuộn): không nhận cử chỉ, để hai ngón
+//   thu trang về cỡ cũ như thường; bản sao position:fixed cũng chỉ đặt đúng chỗ khi trang ở scale 1.
 // Ảnh nhận cử chỉ: chọn theo class của v1, hoặc ảnh có thuộc tính data-pinch-zoom (v2). File gắn vào ảnh có sẵn
 // lúc nó chạy, nên trang nạp file này sau khi đã vẽ ảnh.
 (function () {
@@ -30,6 +32,7 @@
         return null;
     }
     function cancel(e) { if (e.cancelable) e.preventDefault(); }
+    function pageZoomed() { return !!window.visualViewport && visualViewport.scale > 1.01; }
 
     // Bo góc thường nằm ở khung bao ngoài (.main_image, .img-holder) chứ không ở chính ảnh
     function cornerRadius(el) {
@@ -127,7 +130,7 @@
 
     function onStart(e) {
         if (session) { cancel(e); hide(e); return; }
-        if (tracking && e.touches.length === 2) {
+        if (tracking && e.touches.length === 2 && !pageZoomed()) {
             cancel(e);
             begin(tracking, e.touches[0], e.touches[1]);
         }
@@ -180,7 +183,7 @@
     }
 
     // iOS/WebKit phóng cả trang qua gesture event riêng; chặn khi cử chỉ đã thuộc về một ảnh
-    function onGesture(e) { if (tracking) e.preventDefault(); }
+    function onGesture(e) { if (tracking && !pageZoomed()) e.preventDefault(); }
 
     // Listener không-passive trên document chỉ gắn trong lúc có ngón đặt trên ảnh, để lúc khác
     // cuộn trang không phải chờ JS. Capture: ngón thứ hai đặt ở đâu cũng bắt được.

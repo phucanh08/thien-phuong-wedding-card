@@ -1,0 +1,33 @@
+/* Nút X đóng LightGallery trên điện thoại (lightbox-close.js) */
+.lb-close-x {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 6px);
+    right: calc(env(safe-area-inset-right, 0px) + 6px);
+    z-index: 1090;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: rgba(0, 0, 0, .55);
+    border: 1.5px solid rgba(255, 255, 255, .85);
+    border-radius: 50%;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, .5);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+.lb-close-x:active {
+    background: rgba(0, 0, 0, .8);
+}
+.lg-closing .lb-close-x {
+    opacity: 0;
+    transition: opacity .15s;
+}
+/* Chừa chỗ để nút X không đè nút phát/zoom của thanh công cụ */
+.lb-has-close-x .lg-toolbar {
+    box-sizing: border-box;
+    padding-right: calc(env(safe-area-inset-right, 0px) + 50px);
+}

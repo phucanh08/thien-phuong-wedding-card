@@ -67,5 +67,13 @@ và báo "bad CPU type". Dùng `/usr/bin/python3`, `/usr/bin/ruby`, `sips`, `git
    - **Khách (không đăng nhập)**: `get` một `guests/{code}` (không `list`); tạo/sửa `rsvp/{code}`
      khi `guests/{code}` tồn tại, tạo `rsvp/{autoId}` khi `code == null` và có `name`; đọc và tạo
      `wishes` (không sửa/xoá); field validate đúng kiểu và độ dài như bảng.
+   - Quyền "khách" áp dụng cho **mọi** request (đăng nhập hay không) — người đăng nhập chưa duyệt
+     vẫn mở thiệp, gửi RSVP/lời chúc như khách, chỉ không có thêm quyền admin.
+   - `rsvp.name` ≤ 60; `rsvp.events` list ≤ 10 phần tử, mỗi phần tử string;
+     `accessRequests.displayName` string hoặc null.
+   - `mustChangePassword` là chốt chặn **giao diện**, không phải ranh giới bảo mật (rules không
+     kiểm được việc đổi mật khẩu); tài khoản `approved` có quyền admin ngay ở tầng rules.
+   - Admin ghi không bị validate shape ở rules (admin là người tin cậy); quyền admin chỉ trên 4
+     collection trên, không có catch-all.
    - Link `?code=` không tồn tại hoặc không có: thiệp chào chung, **không** tự tạo `guests`.
    - Số mâm = làm tròn lên (tổng `count` của RSVP `attending == "yes"` có event đó) / 10.

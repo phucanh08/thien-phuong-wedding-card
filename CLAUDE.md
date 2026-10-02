@@ -39,6 +39,12 @@ bản x86_64 và chạy bình thường. Phục vụ web tĩnh vẫn dùng `/usr
 - `docs/index.html` — thiệp duy nhất (mẫu "Nhà Có Hỷ"), **không minify**, mở thẳng ở `/` và
   `/?code=`; lấy nội dung qua `docs/content-loader.js`. Có `<meta name="robots" content="noindex,
   nofollow">` (thiệp riêng tư, Human 2026-10-02) — không bỏ.
+- Ngoại lệ "không hard-code" (Human 2026-10-02): thẻ chia sẻ link trong `<head>` của `docs/index.html`
+  (`<title>`, description, `og:*`, `twitter:*`, icon, apple-touch-icon) là chữ/ảnh **cố định**, vì máy đọc
+  link của Zalo, Telegram, X, Messenger, Facebook không chạy JS. Ảnh: `docs/assets/images/share/`
+  (`og:image` là URL tuyệt đối trên tên miền, `twitter:card` = `summary` vì ảnh vuông). `applyMeta` chỉ
+  đổi tiêu đề/biểu tượng tab theo `meta.title`/`meta.favicon`; `meta.description`/`meta.previewImage`
+  không đổi khung xem trước link.
 - `docs/v2/` — script/CSS/ảnh của thiệp (`card.js`, `v2.js`, `v2.css`, `dresscode.js`,
   `gallery-grid.js`, `assets/`). `docs/v2/index.html` và `docs/v1/index.html` chỉ còn là trang chuyển
   hướng về `/` cho link cũ, giữ `?code=` và `#hash`.

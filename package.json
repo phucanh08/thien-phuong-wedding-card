@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "sh -c '/usr/bin/python3 -m http.server ${PORT:-8080} --directory docs & web=$!; trap \"kill $web\" EXIT INT TERM; firebase emulators:start --only auth,firestore --project demo-thien-phuong'",
     "test": "firebase emulators:exec --only firestore --project demo-thien-phuong-rules \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",
+    "test:unit": "node --test tests/unit/*.test.mjs",
     "test:rules": "node --test --test-concurrency=1 tests/rules/*.test.mjs"
   },
   "devDependencies": {

@@ -6,12 +6,28 @@
 //   mâm dự kiến = làm tròn lên (người đã xác nhận đi + `expectedCount` của khách mời lễ đó chưa trả lời) / 10.
 //   Số theo ngày là cộng các lễ cùng ngày.
 // - Khách có mã: lễ được tính = rsvp.events ∩ guests.invitedEvents (khi invitedEvents có lễ hợp lệ).
-// - Khách link chung (code null) trùng tên (bỏ dấu, viết thường, gộp khoảng trắng): chỉ tính doc mới nhất.
+// - Khách link chung (code null) trùng tên: chỉ tính doc mới nhất. Tên so bằng nameKey: giữ nguyên dấu tiếng Việt
+//   ("Ân" ≠ "An"), chỉ bỏ khác biệt hoa/thường, khoảng trắng thừa và ký tự vô hình (ruling R1 của Human).
+//   Tên rỗng sau khi làm sạch không gộp với ai.
+// - Khách có mã nhưng invitedEvents không có lễ hợp lệ nào: không thuộc lễ nào, được đếm riêng ở `unassigned`.
 // - rsvp của khách đã xoá: không tính vào số khách mời, vẫn tính người đi nếu "yes".
 // - "maybe" không vào mâm, tính vào "chưa chắc".
-import { fold } from "./guest-import.js";
 
 export const TABLE_SIZE = 10;
+
+// Ký tự vô hình: định dạng (zero-width…), điều khiển, ô trống Hangul. Khớp cleanName trong guest-import.js.
+const INVISIBLE = /[\p{Cf}\p{Cc}\u115F\u1160\u3164\uFFA0]/gu;
+
+// Khoá so tên link chung: NFC, bỏ ký tự vô hình, gộp khoảng trắng, viết thường. KHÔNG bỏ dấu.
+export function nameKey(name) {
+  return String(name ?? "")
+    .replace(/\s+/g, " ")
+    .replace(INVISIBLE, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .normalize("NFC")
+    .toLocaleLowerCase("vi");
+}
 
 const tables = (people) => Math.ceil(people / TABLE_SIZE);
 
@@ -26,7 +42,7 @@ function headcount(value) {
 // rsvps: [{ id, code, name, attending, count, events, note, updatedAt (ms, null nếu chưa có) }]
 // guests: [{ code, name, side, invitedEvents, expectedCount, ... }]
 // events: [{ key, title, startISO }] theo wedding-data.js
-// Trả về { entries, events, days, totals }.
+// Trả về { entries, events, days, totals, unassigned }.
 export function computeStats({ guests, rsvps, events }) {
   const eventList = events.filter((e) => e && e.key);
   const eventKeys = new Set(eventList.map((e) => e.key));
@@ -58,14 +74,15 @@ export function computeStats({ guests, rsvps, events }) {
   const latestByName = new Map();
   for (const e of entries) {
     if (e.source !== "public") continue;
-    const key = fold(e.name);
+    const key = nameKey(e.name);
+    if (!key) continue;
     const best = latestByName.get(key);
     if (!best || newer(e, best)) latestByName.set(key, e);
   }
   for (const e of entries) {
     if (e.source !== "public") continue;
-    const best = latestByName.get(fold(e.name));
-    if (best !== e) e.duplicateOf = best.id;
+    const best = latestByName.get(nameKey(e.name));
+    if (best && best !== e) e.duplicateOf = best.id;
   }
 
   const active = entries.filter((e) => !e.duplicateOf);
@@ -115,6 +132,24 @@ export function computeStats({ guests, rsvps, events }) {
     return s;
   });
 
+  // ---- Khách có mã nhưng không thuộc lễ nào: không vào số từng lễ, nên đếm riêng cho khỏi rơi mất ----
+  const unassigned = { guests: 0, people: 0, answered: 0, pendingGuests: 0, pendingPeople: 0, yesPeople: 0, guestCodes: [] };
+  for (const guest of guests) {
+    if (validKeys(guest.invitedEvents, eventKeys).length) continue;
+    const expected = headcount(guest.expectedCount);
+    unassigned.guests++;
+    unassigned.people += expected;
+    unassigned.guestCodes.push(guest.code);
+    const r = rsvpByCode.get(guest.code);
+    if (r && r.attending) {
+      unassigned.answered++;
+      unassigned.yesPeople += r.people;
+    } else {
+      unassigned.pendingGuests++;
+      unassigned.pendingPeople += expected;
+    }
+  }
+
   // ---- Theo ngày: cộng các lễ cùng ngày (mâm cũng cộng theo lễ, không làm tròn lại) ----
   const days = [];
   for (const s of perEvent) {
@@ -146,7 +181,7 @@ export function computeStats({ guests, rsvps, events }) {
     totals.yesPeople += e.people;
   }
 
-  return { entries, events: perEvent, days, totals };
+  return { entries, events: perEvent, days, totals, unassigned };
 }
 
 function newer(a, b) {

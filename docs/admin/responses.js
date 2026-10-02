@@ -80,7 +80,35 @@ function toast(text) {
 }
 
 export function createResponsesSection({ db }) {
-  const state = { guests: [], rsvps: [], wishes: [], loaded: new Set(), unsubscribes: [], stats: null };
+  const state = {
+    guests: [], rsvps: [], wishes: [], loaded: new Set(), unsubscribes: [], stats: null,
+    // Hai kênh lỗi tách nhau để snapshot kế tiếp không xoá lỗi của thao tác xoá: lỗi nghe dữ liệu theo từng
+    // collection (hết khi collection đó về lại) và lỗi thao tác (hết khi bấm thao tác mới, rời mục, hoặc stop()).
+    loadErrors: new Map(), actionError: "",
+  };
+
+  // Khung báo lỗi nằm ngoài panel trong index.html nên hiện trên mọi tab: đưa vào panel "xac-nhan" để chỉ
+  // hiện ở mục này (admin.js ẩn/hiện panel). Đã nằm trong một panel thì giữ nguyên.
+  const errorNode = $("responses-error");
+  const panel = document.querySelector('[data-panel="xac-nhan"]');
+  if (panel && !errorNode.closest("[data-panel]")) {
+    const heading = panel.querySelector("h2");
+    if (heading) heading.after(errorNode);
+    else panel.prepend(errorNode);
+  }
+
+  function renderError() {
+    showMessage(errorNode, [...state.loadErrors.values(), state.actionError].filter(Boolean).join(" · "));
+  }
+
+  function setActionError(text) {
+    state.actionError = text;
+    renderError();
+  }
+
+  window.addEventListener("hashchange", () => {
+    if (state.actionError && location.hash !== "#xac-nhan") setActionError("");
+  });
 
   // ---------- Nghe dữ liệu ----------
 
@@ -91,12 +119,16 @@ export function createResponsesSection({ db }) {
     return onSnapshot(
       collection(db, name),
       (snapshot) => {
-        showMessage($("responses-error"), "");
+        state.loadErrors.delete(name);
+        renderError();
         state[name === "rsvp" ? "rsvps" : name] = snapshot.docs.map(map);
         state.loaded.add(name);
         render();
       },
-      (error) => showMessage($("responses-error"), `Không tải được dữ liệu (${name}): ${errorText(error)}`),
+      (error) => {
+        state.loadErrors.set(name, `Không tải được dữ liệu (${name}): ${errorText(error)}`);
+        renderError();
+      },
     );
   }
 
@@ -123,6 +155,11 @@ export function createResponsesSection({ db }) {
     state.wishes = [];
     state.loaded.clear();
     state.stats = null;
+    state.loadErrors.clear();
+    setActionError("");
+    // Xoá phần đã vẽ: đăng xuất rồi vào lại bằng tài khoản khác không được thấy dữ liệu của phiên trước.
+    for (const id of ["rsvp-list", "wish-list", "stats-days"]) $(id).replaceChildren();
+    for (const id of ["rsvp-count", "wish-count", "stats-summary"]) $(id).textContent = "";
   }
 
   function render() {
@@ -140,10 +177,11 @@ export function createResponsesSection({ db }) {
     node.type = "button";
     node.addEventListener("click", async () => {
       node.disabled = true;
+      setActionError("");
       try {
         await onClick();
       } catch (error) {
-        showMessage($("responses-error"), errorText(error));
+        setActionError(errorText(error));
       } finally {
         node.disabled = false;
       }
@@ -330,8 +368,23 @@ export function createResponsesSection({ db }) {
     return [grid, tables];
   }
 
+  // Khách có mã nhưng invitedEvents không có lễ hợp lệ nào: không thuộc lễ nào nên không vào số từng lễ.
+  // Hiện riêng để không rơi mất; người đã xác nhận đi vẫn nằm trong mâm của lễ họ chọn.
+  function unassignedBlock(unassigned) {
+    if (!unassigned.guests) return [];
+    const box = el("section", "stats-unassigned alert alert-warning small");
+    box.dataset.stat = "unassigned";
+    box.append(el("strong", "", `${unassigned.guests} khách chưa được mời lễ nào`),
+      el("div", "", `${unassigned.people} người dự kiến · ${unassigned.answered} đã trả lời `
+        + `(${unassigned.yesPeople} người đi) · ${unassigned.pendingGuests} chưa trả lời `
+        + `(${unassigned.pendingPeople} người dự kiến).`),
+      el("div", "", "Các khách này không nằm trong khách mời hay mâm dự kiến của lễ nào. "
+        + "Người đã xác nhận đi vẫn tính vào mâm của lễ họ chọn. Sửa danh sách lễ ở mục Khách mời để xếp họ vào lễ."));
+    return [box];
+  }
+
   function renderStats() {
-    const { days, events, totals } = state.stats;
+    const { days, events, totals, unassigned } = state.stats;
     const root = $("stats-days");
     $("stats-summary").textContent = `${totals.guests} khách mời · ${totals.guestsAnswered} đã trả lời · `
       + `${totals.responses - totals.duplicates} xác nhận được tính (${totals.bySource.public} link chung`
@@ -342,7 +395,7 @@ export function createResponsesSection({ db }) {
       root.replaceChildren(el("p", "text-secondary small mb-0", "Chưa có sự kiện nào trong wedding-data.js."));
       return;
     }
-    root.replaceChildren(...days.map((day) => {
+    root.replaceChildren(...unassignedBlock(unassigned), ...days.map((day) => {
       const block = el("section", "stats-day");
       block.dataset.day = day.date;
       const head = el("div", "stats-day-head");
@@ -379,7 +432,8 @@ export function createResponsesSection({ db }) {
   $("stats-note").textContent = `Mâm = làm tròn lên (số người đã xác nhận đi lễ đó) / ${TABLE_SIZE}. `
     + `Mâm dự kiến cộng thêm số người dự kiến của khách được mời mà chưa trả lời. `
     + "Mỗi lễ tính riêng; số theo ngày là cộng các lễ trong ngày (khách mời hai lễ cùng ngày được đếm ở cả hai). "
-    + "Khách có mã chỉ được tính ở lễ được mời. Khách link chung trùng tên chỉ tính xác nhận mới nhất. "
+    + "Khách có mã chỉ được tính ở lễ được mời; khách chưa được mời lễ nào hiện riêng ở đầu trang. "
+    + "Khách link chung trùng tên (không phân biệt hoa/thường, khoảng trắng; có dấu khác nhau thì là người khác) chỉ tính xác nhận mới nhất. "
     + "Xác nhận của khách đã bị xoá khỏi danh sách vẫn được tính người đi, không tính vào khách mời. "
     + "\"Chưa chắc\" không tính vào mâm.";
 

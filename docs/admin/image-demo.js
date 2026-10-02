@@ -4,10 +4,7 @@ import {
   getAuth, connectAuthEmulator, onAuthStateChanged, signInWithEmailAndPassword,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {
-  getStorage, connectStorageEmulator,
-} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
-import {
-  FIREBASE_CONFIG, AUTH_EMULATOR_PORT, STORAGE_EMULATOR_PORT, USE_EMULATOR,
+  FIREBASE_CONFIG, AUTH_EMULATOR_PORT, USE_EMULATOR,
 } from "../firebase-shared.js";
 import { createImagePicker } from "./image-picker.js";
 
@@ -15,10 +12,8 @@ const USERNAME_DOMAIN = "thien-phuong-wedding.local";
 
 const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
-const storage = getStorage(app);
 if (USE_EMULATOR) {
   connectAuthEmulator(auth, `http://${location.hostname}:${AUTH_EMULATOR_PORT}`, { disableWarnings: true });
-  connectStorageEmulator(storage, location.hostname, STORAGE_EMULATOR_PORT);
 }
 
 const $ = (id) => document.getElementById(id);
@@ -31,7 +26,7 @@ function formatBytes(n) {
 function showResult(result) {
   const { large, small } = result.variants;
   const rows = [
-    ["Đường dẫn", `${result.paths.large}, ${result.paths.small}`],
+    ["Key", `${result.keys.large}, ${result.keys.small}`],
     ["Bản lớn", `${large.width}×${large.height}, ${formatBytes(large.blob.size)}`],
     ["Bản nhỏ", `${small.width}×${small.height}, ${formatBytes(small.blob.size)}`],
     ["URL bản lớn", result.large],
@@ -57,7 +52,7 @@ function mountPicker() {
   $("demo-result").hidden = true;
   picker = createImagePicker({
     container: $("demo-picker"),
-    storage,
+    getIdToken: () => auth.currentUser.getIdToken(),
     kind: $("demo-kind").value,
     onUploaded: showResult,
   });

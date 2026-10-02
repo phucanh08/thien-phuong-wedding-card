@@ -1,5 +1,5 @@
 // Hộp chọn ảnh cho một ô nội dung: chọn ảnh → khung cắt tự đặt giữa theo tỉ lệ ô → admin
-// chỉnh → xác nhận → tạo WebP bản lớn/bản nhỏ trên máy → tải lên Storage → onUploaded(kết quả).
+// chỉnh → xác nhận → tạo WebP bản lớn/bản nhỏ trên máy → tải lên R2 qua Worker → onUploaded(kết quả).
 import {
   SLOT_ASPECTS, loadImageFile, makeImageVariants, ImageReadError,
 } from "./image-pipeline.js";
@@ -14,7 +14,8 @@ function el(tag, className, text) {
 }
 
 // kind: một khoá của SLOT_ASPECTS (portrait, cover, event, story, album, qr).
-export function createImagePicker({ container, storage, kind, onUploaded }) {
+// getIdToken: hàm trả Firebase ID token của admin đang đăng nhập.
+export function createImagePicker({ container, getIdToken, kind, onUploaded }) {
   if (!(kind in SLOT_ASPECTS)) throw new Error(`Loại ô ảnh không hợp lệ: ${kind}`);
 
   const root = el("div", "image-picker d-flex flex-column gap-3");
@@ -89,7 +90,8 @@ export function createImagePicker({ container, storage, kind, onUploaded }) {
     try {
       const variants = await makeImageVariants(loaded.image, cropper.getCrop(), { kind });
       status.textContent = "Đang tải lên…";
-      const urls = await uploadImagePair(storage, { large: variants.large.blob, small: variants.small.blob });
+      const urls = await uploadImagePair(
+        { large: variants.large.blob, small: variants.small.blob }, { getIdToken });
       setBusy(false, "Đã tải ảnh lên.");
       onUploaded?.({ ...urls, variants });
     } catch (err) {

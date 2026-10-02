@@ -1,0 +1,193 @@
+:root {
+  --rose: #b4506a;
+  --rose-dark: #963f56;
+  --rose-soft: #fbeff2;
+  --ink: #2b2226;
+  --nav-w: 230px;
+  --header-h: 56px;
+}
+
+body {
+  background: #faf7f8;
+  color: var(--ink);
+}
+
+[hidden] { display: none !important; }
+
+.min-w-0 { min-width: 0; }
+
+.brand {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  color: var(--rose);
+  letter-spacing: .02em;
+}
+
+.text-rose { color: var(--rose); }
+
+.btn-rose {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: var(--rose);
+  --bs-btn-border-color: var(--rose);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--rose-dark);
+  --bs-btn-hover-border-color: var(--rose-dark);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: var(--rose-dark);
+  --bs-btn-active-border-color: var(--rose-dark);
+  --bs-btn-disabled-color: #fff;
+  --bs-btn-disabled-bg: var(--rose);
+  --bs-btn-disabled-border-color: var(--rose);
+}
+
+.form-control:focus {
+  border-color: var(--rose);
+  box-shadow: 0 0 0 .2rem rgba(180, 80, 106, .2);
+}
+
+/* Màn đăng nhập / chờ duyệt / đổi mật khẩu */
+.auth-wrap {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  border: 0;
+  border-radius: 1rem;
+}
+
+.btn-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .6rem;
+  padding: .6rem;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  color: #8a7f83;
+  font-size: .875rem;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid #e5dde0;
+}
+
+.status-icon { font-size: 2.5rem; line-height: 1; }
+
+/* Khung trang quản lý */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: 0 1rem;
+  background: #fff;
+  border-bottom: 1px solid #eee4e7;
+}
+
+.account-label { max-width: 45vw; }
+
+.app-nav {
+  position: sticky;
+  top: var(--header-h);
+  z-index: 9;
+  display: flex;
+  gap: .25rem;
+  overflow-x: auto;
+  padding: .5rem .75rem;
+  background: #fff;
+  border-bottom: 1px solid #eee4e7;
+  scrollbar-width: none;
+}
+.app-nav::-webkit-scrollbar { display: none; }
+
+.app-nav a {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .45rem .8rem;
+  border-radius: 999px;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: .925rem;
+}
+.app-nav a:hover { background: var(--rose-soft); }
+.app-nav a.active {
+  background: var(--rose);
+  color: #fff;
+}
+
+.app-main {
+  padding: 1.25rem 1rem 2rem;
+  max-width: 1100px;
+}
+
+.placeholder-card { border-style: dashed; }
+
+@media (min-width: 992px) {
+  .app-body {
+    display: grid;
+    grid-template-columns: var(--nav-w) 1fr;
+  }
+  .app-nav {
+    flex-direction: column;
+    gap: .25rem;
+    height: calc(100vh - var(--header-h));
+    padding: 1rem .75rem;
+    border-bottom: 0;
+    border-right: 1px solid #eee4e7;
+  }
+  .app-nav a {
+    border-radius: .5rem;
+    padding: .6rem .8rem;
+  }
+  .app-main { padding: 2rem; }
+  .account-label { max-width: 320px; }
+}
+
+/* Danh sách tài khoản & yêu cầu */
+.request-list {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.request-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .85rem 1rem;
+  background: #fff;
+  border: 1px solid #eee4e7;
+  border-radius: .75rem;
+}
+
+.request-info { min-width: 0; flex: 1 1 220px; }
+.request-info .name { font-weight: 600; overflow-wrap: anywhere; }
+.request-info .meta { font-size: .825rem; color: #6c6368; overflow-wrap: anywhere; }
+
+.request-actions {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+}

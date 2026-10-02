@@ -7,20 +7,32 @@ import { MAX_IMAGE_BYTES } from "./image-pipeline.js";
 // TODO: điền URL Worker thật (vd https://<tên>.<tài-khoản>.workers.dev) khi Worker được deploy.
 export const WORKER_URL = USE_EMULATOR ? "http://127.0.0.1:8787" : "";
 
+const HTTP_ERRORS = {
+  401: "Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập. Hãy đăng nhập lại rồi thử lại.",
+  403: "Tài khoản này không có quyền tải ảnh (chỉ admin đã được duyệt).",
+  413: "Ảnh quá lớn, mỗi ảnh tối đa 2 MB.",
+  415: "Sai định dạng tệp, máy chủ chỉ nhận ảnh WebP.",
+};
+
 // Tải một blob lên key (dưới content/) và trả URL công khai.
 // getIdToken: hàm trả Firebase ID token của admin đang đăng nhập (vd () => auth.currentUser.getIdToken()).
 export async function uploadToWorker(blob, key, { getIdToken, workerUrl = WORKER_URL }) {
   if (!workerUrl) throw new Error("Chưa cấu hình địa chỉ Worker tải ảnh.");
   if (!key.startsWith("content/")) throw new Error(`Key phải nằm dưới content/: ${key}`);
   const url = `${workerUrl}/${key}`;
-  const response = await fetch(url, {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${await getIdToken()}`, "Content-Type": blob.type },
-    body: blob,
-  });
+  const token = await getIdToken();
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": blob.type },
+      body: blob,
+    });
+  } catch (err) {
+    throw new Error("Không kết nối được máy chủ ảnh. Kiểm tra mạng rồi thử lại.", { cause: err });
+  }
   if (!response.ok) {
-    const detail = (await response.text().catch(() => "")).slice(0, 200);
-    throw new Error(`Worker trả lỗi ${response.status}${detail ? `: ${detail}` : ""}`);
+    throw new Error(HTTP_ERRORS[response.status] ?? `Máy chủ ảnh trả lỗi ${response.status}. Thử lại sau.`);
   }
   return url;
 }

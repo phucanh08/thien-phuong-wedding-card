@@ -3,3 +3,5 @@
 .claude/.cc-writes/
 .worktrees/
 node_modules/
+firestore-debug.log
+*-debug.log

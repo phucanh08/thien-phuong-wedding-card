@@ -112,7 +112,7 @@
         setText('monogram', initial(groom.shortName) + initial(bride.shortName));
 
         // Lời dẫn, đếm ngược, lịch
-        setText('intro', typeof wedding.introText === 'string' ? wedding.introText : DEFAULT_INTRO);
+        renderIntro(wedding);
         setImg(document.querySelector('[data-wd-img="invitation"]'), wedding.invitationImage || mainImage, 'Ảnh cưới');
         setText('calendar-month', `Tháng ${MONTH_NAMES[date.m - 1]} ${date.y}`);
         renderCalendar(date, D.events);
@@ -132,6 +132,24 @@
             audio.src = musicSrc;
             if (D.music.title) audio.title = D.music.title;
         }
+    }
+
+    // Có câu dẫn thì dùng câu dẫn; để trống thì hiện lời ngỏ (mỗi phần tử một dòng, như v1);
+    // không có cả hai thì như cũ: thiếu key -> câu mặc định, chuỗi rỗng -> ẩn.
+    function renderIntro(wedding) {
+        const intro = typeof wedding.introText === 'string' ? wedding.introText : null;
+        const lines = Array.isArray(wedding.invitationText) ? wedding.invitationText.map(line => typeof line === 'string' ? line : '') : [];
+        if ((intro && intro.trim()) || !lines.some(line => line.trim())) {
+            setText('intro', intro == null ? DEFAULT_INTRO : intro);
+            return;
+        }
+        document.querySelectorAll('[data-wd="intro"]').forEach(node => {
+            node.replaceChildren();
+            lines.forEach((line, i) => {
+                if (i) node.append(el('br'));
+                node.append(document.createTextNode(line));
+            });
+        });
     }
 
     function initial(name) {
@@ -202,8 +220,11 @@
         setInterval(tick, 1000);
     }
 
-    function eventTimeText(p) {
-        return p.time ? `Vào ${p.time}, ${WEEKDAYS[p.weekday]}` : `${WEEKDAYS[p.weekday]} · Giờ: đang cập nhật`;
+    // Có giờ kết thúc khác giờ bắt đầu thì hiện khoảng "HH:mm – HH:mm"; kết thúc chỉ có ngày thì như cũ
+    function eventTimeText(p, end) {
+        if (!p.time) return `${WEEKDAYS[p.weekday]} · Giờ: đang cập nhật`;
+        const time = end && end.time && end.time !== p.time ? `${p.time} – ${end.time}` : p.time;
+        return `Vào ${time}, ${WEEKDAYS[p.weekday]}`;
     }
 
     // ===== Thêm vào lịch (common/calendar.js, cùng cấu hình với v1) =====
@@ -269,7 +290,7 @@
             card.dataset.eventKey = event.key;
             card.append(el('p', 'v2-event__side', event.side === 'bride' ? 'Nhà gái' : 'Nhà trai'));
             card.append(el('h3', 'v2-event__name', event.title));
-            const time = el('p', 'v2-event__time' + (p.time ? '' : ' is-pending'), eventTimeText(p));
+            const time = el('p', 'v2-event__time' + (p.time ? '' : ' is-pending'), eventTimeText(p, parseISO(event.endISO)));
             card.append(time);
             const dateRow = el('div', 'v2-event__date');
             dateRow.append(el('p', 'v2-event__date-side', `Tháng ${p.m}`), el('p', 'v2-event__day', pad(p.d)), el('p', 'v2-event__date-side', `Năm ${p.y}`));

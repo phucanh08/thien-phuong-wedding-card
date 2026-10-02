@@ -1131,6 +1131,15 @@
                         <span data-aos="fade-left" class="member-name m-0">${esc(p.shortName)}${p.facebook ? ' /' : ''}</span>
                         ${p.facebook ? `<ul data-aos="fade-up" class="member-contact social-links d-flex p-0 m-0 mx-2"><li><a href="${esc(p.facebook)}" target="_blank" rel="noopener"><i class="bi bi-facebook"></i></a></li></ul>` : ''}
                     </div>`;
+                // Địa chỉ gia đình (tuỳ chọn, cùng field với v2): dưới tên bố mẹ, đưa vào bằng textContent
+                const address = typeof p.address === 'string' ? p.address.trim() : '';
+                if (address) {
+                    const line = document.createElement('div');
+                    line.className = 'parent-address small mt-1';
+                    line.setAttribute('data-wd', `${side}-address`);
+                    line.textContent = address;
+                    el.querySelector('.parent').append(line);
+                }
             });
 
             // Video
@@ -1219,6 +1228,8 @@
                 // Chỉ gửi giờ khi có đủ: thiếu giờ thì calendar.js tạo sự kiện cả ngày
                 if (start.time && end.time) { atcb.startTime = start.time; atcb.endTime = end.time; }
                 const dateText = `${pad(start.d)}/${pad(start.mo)}/${start.y}`;
+                // Có giờ kết thúc khác giờ bắt đầu thì hiện khoảng "HH:mm – HH:mm"; kết thúc chỉ có ngày thì như cũ
+                const timeText = start.time && end.time && end.time !== start.time ? `${start.time} – ${end.time}` : start.time;
                 const dress = (e.dressCode || []).map(c => `<div class="dresscode-colors-item" style="background:${esc(c)}"></div>`).join('');
                 // Trong url("...") của CSS, entity HTML đã được giải mã: mã hoá các ký tự thoát được chuỗi CSS
                 const imageStyle = e.image ? ` style="background-image:url(&quot;${esc(e.image.replace(/["'\\\n\r\f]/g, encodeURIComponent))}&quot;)"` : '';
@@ -1229,7 +1240,7 @@
                     </div>
                     <div class="info-wrap p-3">
                         <h5 class="section-sub-title">${esc(e.title)}</h5>
-                        <strong>${start.time ? `${start.time} ${dateText}` : dateText}</strong>
+                        <strong>${timeText ? `${timeText} ${dateText}` : dateText}</strong>
                         ${start.time ? '' : '<p class="m-0"><small>Giờ: đang cập nhật</small></p>'}
                         ${e.lunarText ? `<p class="m-0"><small>(${esc(e.lunarText)})</small></p>` : ''}
                         <p class="card-text"><span>${esc(e.venue)} -</span> ${esc(e.address)}</p>

@@ -166,6 +166,12 @@ function canonical(value) {
 }
 export const sameContent = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 
+// Dòng đếm ở mục Album của trình sửa.
+export function galleryCountText(gallery) {
+  const items = Array.isArray(gallery) ? gallery : [];
+  return `${items.length} ảnh · ${items.filter((g) => g && g.featured).length} ảnh hiện ở lưới`;
+}
+
 // draft/published: { data, updatedAt (Timestamp: có toMillis), updatedBy } hoặc null.
 // Xuất bản luôn ghi nháp cùng mốc với published, nên nháp có mốc trước published là nháp soạn trên một
 // bản xuất bản cũ (vd published đổi bằng công cụ khác): lưu/xuất bản nó sẽ xoá thay đổi của bản mới.

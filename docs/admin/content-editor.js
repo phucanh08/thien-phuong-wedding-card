@@ -3,7 +3,7 @@
 // Sửa trực tiếp trên một bản sao của data nên field không có ô sửa (field lạ, video...) giữ nguyên.
 import { createContentStore, UNKNOWN_PUBLISHED } from "./content-store.js";
 import { createPreview } from "./content-preview.js";
-import { validateContent, getPath, setPath, splitISO, joinISO, cardVersion, CARD_VERSIONS } from "./content-model.js";
+import { validateContent, getPath, setPath, splitISO, joinISO, cardVersion, CARD_VERSIONS, galleryCountText } from "./content-model.js";
 import { whereOf } from "./content-labels.js";
 import { createImagePicker } from "./image-picker.js";
 import { uploadToWorker } from "./image-upload.js";
@@ -741,7 +741,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
       if (!Array.isArray(state.data.gallery)) state.data.gallery = [];
       const items = state.data.gallery;
       $("content-gallery-count")?.remove();
-      const count = el("div", "small text-secondary mb-2", `${items.length} ảnh · ${items.filter((g) => g && g.featured).length} ảnh hiện ở lưới`);
+      const count = el("div", "small text-secondary mb-2", galleryCountText(items));
       count.id = "content-gallery-count";
       list.before(count);
       items.forEach((item, i) => {

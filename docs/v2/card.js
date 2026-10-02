@@ -318,22 +318,10 @@
         }));
     }
 
-    function featuredItems(gallery) {
-        const featured = gallery.map((item, index) => ({ item, index })).filter(x => x.item.featured);
-        return featured.length ? featured : gallery.slice(0, 6).map((item, index) => ({ item, index }));
-    }
-
     function renderCover(D) {
-        const custom = Array.isArray(D.wedding.coverImages) ? D.wedding.coverImages.filter(u => typeof u === 'string' && u) : [];
-        const featured = featuredItems(D.gallery);
-        // Ảnh lớn dùng bản large, hai ảnh nhỏ dùng bản small
-        const fallback = [0, 1, 2].map(i => {
-            const entry = featured[i] || featured[0];
-            return i === 0 ? entry.item.large : entry.item.small;
-        });
+        const sources = window.v2GalleryGrid.coverSources(D.gallery, D.wedding.coverImages);
         document.querySelectorAll('[data-cover]').forEach(img => {
-            const i = +img.dataset.cover;
-            setImg(img, custom[i] || fallback[i], 'Ảnh cưới');
+            setImg(img, sources[+img.dataset.cover], 'Ảnh cưới');
         });
     }
 
@@ -422,7 +410,7 @@
     function renderAlbum(gallery) {
         const stage = document.getElementById('v2-album');
         const dots = document.getElementById('v2-album-dots');
-        const items = featuredItems(gallery);
+        const items = window.v2GalleryGrid.gridItems(gallery);
         const slides = items.map(({ item, index }, i) => {
             const slide = el('button', 'v2-album__slide');
             slide.type = 'button';

@@ -630,7 +630,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
 
     const texts = group(body, "Lời ngỏ & lời cảm ơn");
     linesField(texts, { path: "wedding.invitationText", label: "Lời ngỏ", hint: "Mỗi dòng là một đoạn." });
-    textField(texts, { path: "wedding.introText", label: "Câu dẫn", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu ngay trên đồng hồ đếm ngược. Bỏ trống thì dùng câu mặc định." });
+    textField(texts, { path: "wedding.introText", label: "Câu dẫn", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu ngay trên đồng hồ đếm ngược. Bỏ trống thì v2 hiện lời ngỏ (mục Lời ngỏ); không có lời ngỏ thì dùng câu mặc định." });
     textField(texts, { path: "wedding.thanksText", label: "Lời cảm ơn", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu dưới chữ “Thank you” cuối thiệp. Bỏ trống thì dùng câu mặc định." });
   }
 

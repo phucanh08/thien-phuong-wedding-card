@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="vi" class="v2-locked">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="format-detection" content="telephone=no">
+    <!-- Trang nằm ở docs/v2/; tài nguyên dùng chung ở docs/ nên mọi đường dẫn tương đối tính từ ../ -->
+    <base href="../">
+    <script>
+        // <base> làm href="#x" trỏ về docs/#x (tải lại trang, mất ?code=); xử lý lại thành cuộn trong trang.
+        window.addEventListener('click', function (e) {
+            if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            const a = e.target.closest && e.target.closest('a[href^="#"]');
+            if (!a || (a.target && a.target !== '_self')) return;
+            e.preventDefault();
+            const hash = a.getAttribute('href');
+            if (hash.length > 1) location.hash = hash; else window.scrollTo(0, 0);
+        });
+    </script>
+    <!-- Title/description/og:* được điền từ nội dung thiệp (applyMeta trong v2/v2.js) -->
+    <title>Wedding</title>
+    <meta name="description" content="">
+    <meta name="keywords" content="">
+    <meta name="application-name" content="">
+    <!-- data:, chặn trình duyệt tự xin /favicon.ico trước khi applyMeta đặt icon thật -->
+    <link rel="icon" href="data:,">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="">
+    <meta property="og:title" content="">
+    <meta property="og:description" content="">
+    <meta property="og:image" content="">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="">
+    <meta name="twitter:description" content="">
+    <meta name="twitter:image" content="">
+
+    <!-- Nội dung dự phòng; content-loader.js ưu tiên bản đã xuất bản (siteContent/published) -->
+    <script src="wedding-data.js"></script>
+    <link rel="modulepreload" href="content-loader.js">
+    <link rel="modulepreload" href="firebase-shared.js">
+
+    <!-- Font thay thế cho font riêng của mẫu "Nhà Có Hỷ" (đều có subset tiếng Việt), xem v2/v2.css -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Cormorant+Garamond:wght@300;500;600&family=Great+Vibes&family=Imperial+Script&family=Lobster&family=Philosopher:ital,wght@0,400;0,700;1,400&family=Quicksand:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="templates/template135/lightgallery/css/lightgallery-bundle.css">
+    <link rel="stylesheet" href="v2/v2.css">
+</head>
+<body>
+    <!-- ===== 0. Màn phong bì: hiện ngay (không chờ dữ liệu), chạm để mở ===== -->
+    <div class="v2-envelope" id="v2-envelope">
+        <img class="v2-envelope__bg" src="v2/assets/bg-envelop.webp" alt="" aria-hidden="true">
+        <img class="v2-envelope__firework v2-envelope__firework--top" src="v2/assets/firework.webp" alt="" aria-hidden="true">
+        <img class="v2-envelope__firework v2-envelope__firework--bottom" src="v2/assets/firework.webp" alt="" aria-hidden="true">
+        <div class="v2-envelope__intro">
+            <p class="v2-envelope__label">Trân trọng kính mời</p>
+            <!-- V2b: tên khách theo ?code= điền vào mọi [data-guest-name] -->
+            <p class="v2-envelope__guest" data-guest-name>Quý Khách</p>
+            <p class="v2-envelope__message">Đến dự buổi tiệc chung vui cùng gia đình</p>
+        </div>
+        <div class="v2-envelope__stage">
+            <div class="v2-envelope__closed">
+                <img class="v2-envelope__closed-img" src="v2/assets/envelope-closed-red-full.webp" alt="">
+                <span class="v2-envelope__seal"><img src="v2/assets/env-seal-small.webp" alt=""></span>
+                <span class="v2-envelope__cursor" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6.5 14V4a2 2 0 0 1 4 0v5.5"/><path d="M10.5 10V8a2 2 0 0 1 4 0v2"/><path d="M14.5 10V9a2 2 0 0 1 4 0v2"/>
+                        <path d="M18.5 11a2 2 0 0 1 4 0v5.2a5.8 5.8 0 0 1-5.8 5.8h-4.5a6 6 0 0 1-4.25-1.76l-5.2-5.2a2 2 0 0 1 2.83-2.83L6.5 13"/>
+                    </svg>
+                </span>
+            </div>
+            <div class="v2-envelope__open" aria-hidden="true">
+                <img class="v2-envelope__flap" src="v2/assets/envelop-top-red.webp" alt="">
+                <div class="v2-envelope__viewport">
+                    <div class="v2-envelope__photo"><img data-envelope-photo alt=""></div>
+                </div>
+                <img class="v2-envelope__pocket" src="v2/assets/envelop-bottom-red.webp" alt="">
+            </div>
+            <span class="v2-envelope__hint">Chạm để mở thiệp</span>
+        </div>
+        <button type="button" class="v2-envelope__open-control" id="v2-envelope-open" aria-label="Chạm để mở thiệp"></button>
+    </div>
+
+    <!-- ===== Nút nhạc (bám cột 500px, góc trên trái) ===== -->
+    <div class="v2-music" id="v2-music" hidden>
+        <button type="button" class="v2-music__toggle" aria-label="Bật/tắt nhạc nền">
+            <span class="v2-music__icon v2-music__icon--play" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M3 12h2l2.2-4.2L9.5 16l2.5-8 2.4 6h2.6l2-3 2 4h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="v2-music__icon v2-music__icon--pause" aria-hidden="true">
+                <span class="v2-music__bars"><span></span><span></span><span></span></span>
+            </span>
+        </button>
+        <audio id="v2-audio" preload="none" loop></audio>
+    </div>
+
+    <main class="v2-card" id="v2-card">
+        <!-- ===== 1. Banner đôi ===== -->
+        <section class="v2-couple" aria-label="Cô dâu chú rể">
+            <p class="v2-couple__heading">OUR WEDDING</p>
+            <div class="v2-couple__banner"><img data-wd-img="main" alt=""></div>
+            <div class="v2-couple__content">
+                <div class="v2-couple__names">
+                    <p class="v2-couple__name" data-wd="groom-short"></p>
+                    <p class="v2-couple__divider">&amp;</p>
+                    <p class="v2-couple__name" data-wd="bride-short"></p>
+                </div>
+                <p class="v2-couple__date" data-wd="date-dots"></p>
+            </div>
+        </section>
+
+        <!-- ===== 2. Gia đình "Nhà Có Hỷ" ===== -->
+        <section class="v2-family" aria-label="Gia đình hai bên">
+            <h2 class="v2-family__joy" aria-label="Nhà có hỷ"><span>Nhà</span><span>Có</span><span>Hỷ</span></h2>
+            <img class="v2-family__firework" src="v2/assets/firework.webp" alt="" aria-hidden="true">
+            <div class="v2-family__body">
+                <div class="v2-family__list">
+                    <article class="v2-family__group" data-reveal="fade-up" style="--reveal-delay:120ms">
+                        <h3 class="v2-family__title">Nhà trai</h3>
+                        <p class="v2-family__parent">Ông : <span data-wd="groom-father"></span></p>
+                        <p class="v2-family__parent">Bà : <span data-wd="groom-mother"></span></p>
+                        <p class="v2-family__address" data-wd="groom-address"></p>
+                    </article>
+                    <article class="v2-family__group" data-reveal="fade-up" style="--reveal-delay:220ms">
+                        <h3 class="v2-family__title">Nhà gái</h3>
+                        <p class="v2-family__parent">Ông : <span data-wd="bride-father"></span></p>
+                        <p class="v2-family__parent">Bà : <span data-wd="bride-mother"></span></p>
+                        <p class="v2-family__address" data-wd="bride-address"></p>
+                    </article>
+                </div>
+                <div class="v2-family__ornament" data-reveal="fade-left" aria-hidden="true"><span class="v2-family__seal">囍</span></div>
+            </div>
+            <div class="v2-family__monogram" data-reveal="monogram">
+                <img src="v2/assets/heart.webp" alt="" aria-hidden="true">
+                <span data-wd="monogram"></span>
+            </div>
+        </section>
+
+        <!-- ===== 3. Lời dẫn + đếm ngược + lịch tháng ===== -->
+        <section class="v2-lovestory" aria-label="Đếm ngược">
+            <p class="v2-lovestory__intro" data-wd="intro"></p>
+            <div class="v2-countdown" data-reveal="fade-up" aria-live="off">
+                <h2 class="v2-countdown__title">Countdown</h2>
+                <div class="v2-countdown__grid">
+                    <div class="v2-countdown__unit"><span class="v2-countdown__num" data-cd="days">00</span><span class="v2-countdown__label">Ngày</span></div>
+                    <div class="v2-countdown__unit"><span class="v2-countdown__num" data-cd="hours">00</span><span class="v2-countdown__label">Giờ</span></div>
+                    <div class="v2-countdown__unit"><span class="v2-countdown__num" data-cd="minutes">00</span><span class="v2-countdown__label">Phút</span></div>
+                    <div class="v2-countdown__unit"><span class="v2-countdown__num" data-cd="seconds">00</span><span class="v2-countdown__label">Giây</span></div>
+                </div>
+            </div>
+            <div class="v2-lovestory__card">
+                <figure class="v2-lovestory__portrait">
+                    <img data-wd-img="invitation" alt="">
+                    <figcaption aria-hidden="true">My Love</figcaption>
+                </figure>
+                <div class="v2-calendar">
+                    <p class="v2-calendar__month" data-wd="calendar-month"></p>
+                    <div class="v2-calendar__rule" data-reveal="rule"></div>
+                    <table class="v2-calendar__table" id="v2-calendar"></table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== 4. Thiệp mời sự kiện ===== -->
+        <section class="v2-events" aria-label="Thiệp mời sự kiện cưới">
+            <header class="v2-events__header">
+                <img class="v2-events__firework v2-events__firework--top" src="v2/assets/firework.webp" alt="" aria-hidden="true">
+                <p class="v2-events__salutation">Trân trọng kính mời</p>
+                <p class="v2-events__guest"><span data-guest-name>Quý Khách</span></p>
+                <p class="v2-events__description">Đến dự bữa tiệc thân mật mừng ngày hạnh phúc của hai gia đình chúng tôi</p>
+                <p class="v2-events__couple">
+                    <span class="v2-events__name" data-wd="groom-short"></span>
+                    <span class="v2-events__amp">&amp;</span>
+                    <span class="v2-events__name" data-wd="bride-short"></span>
+                </p>
+            </header>
+            <!-- Thẻ sự kiện vẽ từ events[] (hiện tất cả lễ, R6). V2b: nút "Thêm vào lịch" cạnh "Xem bản đồ" -->
+            <div class="v2-events__list" id="v2-events"></div>
+            <img class="v2-events__firework v2-events__firework--bottom" src="v2/assets/firework.webp" alt="" aria-hidden="true">
+        </section>
+
+        <!-- ===== 5. Ảnh ghép "WITH YOU" ===== -->
+        <section class="v2-cover" aria-label="Ảnh cưới">
+            <div class="v2-cover__layout">
+                <figure class="v2-cover__photo v2-cover__photo--hero" data-reveal="fade-up"><img data-cover="0" alt=""></figure>
+                <p class="v2-cover__words" data-reveal="fade-right" aria-hidden="true">WITH YOU</p>
+                <figure class="v2-cover__photo v2-cover__photo--left" data-reveal="fade-right"><img data-cover="1" alt=""></figure>
+                <figure class="v2-cover__photo v2-cover__photo--right" data-reveal="fade-left"><img data-cover="2" alt=""></figure>
+            </div>
+        </section>
+
+        <!-- ===== 6. Timeline (events sắp theo giờ, R2) + Dresscode theo từng lễ ===== -->
+        <section class="v2-timeline" aria-label="Lịch trình">
+            <img class="v2-timeline__firework v2-timeline__firework--top" src="v2/assets/firework.webp" alt="" aria-hidden="true">
+            <img class="v2-timeline__firework v2-timeline__firework--bottom" src="v2/assets/firework.webp" alt="" aria-hidden="true">
+            <h2 class="v2-script-title">Timeline</h2>
+            <ol class="v2-timeline__list" id="v2-timeline"></ol>
+            <div class="v2-dresscode" id="v2-dresscode-wrap">
+                <h2 class="v2-script-title v2-script-title--dresscode">Dresscode</h2>
+                <div class="v2-dresscode__rows" id="v2-dresscode"></div>
+            </div>
+        </section>
+
+        <!-- ===== 6b. Chuyện tình (story[], R3) ===== -->
+        <section class="v2-story" id="v2-story-section" aria-label="Chuyện tình">
+            <h2 class="v2-script-title">Chuyện tình</h2>
+            <ol class="v2-story__list" id="v2-story"></ol>
+        </section>
+
+        <!-- ===== 7. Album 3D (featured) + LightGallery (toàn bộ gallery) ===== -->
+        <section class="v2-album" aria-label="Album ảnh cưới">
+            <div class="v2-album__stage" id="v2-album" tabindex="0" aria-roledescription="carousel"></div>
+            <button type="button" class="v2-album__nav v2-album__nav--prev" aria-label="Ảnh trước"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+            <button type="button" class="v2-album__nav v2-album__nav--next" aria-label="Ảnh tiếp theo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+            <div class="v2-album__dots" id="v2-album-dots"></div>
+            <div id="v2-lightgallery" hidden></div>
+        </section>
+
+        <!-- ===== 8. Hộp mừng cưới ===== -->
+        <section class="v2-gift" aria-label="Hộp mừng cưới">
+            <h2 class="v2-script-title v2-gift__title">Hộp Mừng Cưới</h2>
+            <p class="v2-gift__subtitle">Sự hiện diện của bạn chính là món quà ý nghĩa nhất. Nếu bạn muốn gửi quà, có thể tham khảo thông tin dưới đây.</p>
+            <div class="v2-gift__list" id="v2-gift"></div>
+        </section>
+
+        <!-- ===== 9. Thank you ===== -->
+        <section class="v2-thanks" aria-label="Lời cảm ơn">
+            <h2 class="v2-script-title v2-thanks__title">Thank you</h2>
+            <p class="v2-thanks__message" data-wd="thanks"></p>
+        </section>
+    </main>
+
+    <!-- ===== Dock hành động (đáy, bám cột 500px) =====
+         V2b nối: ô "Gửi lời chúc" mở sổ lời chúc (lời chúc ≤ 500 ký tự), badge đếm lời chúc,
+         nút RSVP mở sheet xác nhận tham dự (3 lựa chọn yes/maybe/no theo C5, hạn wedding.rsvpDeadline). -->
+    <div class="v2-dock" id="v2-dock" hidden>
+        <div class="v2-dock__items">
+            <button type="button" class="v2-dock__wish" data-action="guestbook">
+                <span>Gửi lời chúc</span>
+                <span class="v2-dock__badge" data-wish-count hidden>0</span>
+            </button>
+            <span class="v2-dock__rsvp-wrap">
+                <button type="button" class="v2-dock__button v2-dock__button--rsvp" data-action="rsvp" aria-label="Xác nhận tham dự">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M8 3.5v4M16 3.5v4M3.5 10h17M8 15.2l2.2 2.1 5-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <span class="v2-dock__tooltip" aria-hidden="true">Xác nhận tham dự</span>
+            </span>
+        </div>
+        <button type="button" class="v2-dock__button v2-dock__switch" aria-label="Thu gọn" aria-expanded="true">
+            <svg class="v2-dock__icon-close" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <svg class="v2-dock__icon-menu" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+    </div>
+
+    <script type="module" src="v2/v2.js"></script>
+</body>
+</html>

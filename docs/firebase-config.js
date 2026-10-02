@@ -62,6 +62,12 @@ function greetGuest(guest) {
     const fullName = [guest.salutation, guest.name].filter(Boolean).join(' ');
     document.getElementById('title-confirm-id').textContent =
         `Trân trọng kính mời ${fullName} đến tham dự buổi tiệc chung vui cùng gia đình chúng tôi!`;
+    // Lời mời đích danh ngay trên thân thiệp (mục Lời ngỏ); không có tên thì giữ lời mời chung.
+    const cardGreeting = document.getElementById('invitation-guest');
+    if (fullName) {
+        cardGreeting.textContent = `Trân trọng kính mời ${fullName}`;
+        cardGreeting.hidden = false;
+    }
 
     const rsvpName = document.getElementById('guest-name');
     if (!rsvpName.value.trim()) rsvpName.value = (guest.name || '').slice(0, WISH_NAME_MAX);

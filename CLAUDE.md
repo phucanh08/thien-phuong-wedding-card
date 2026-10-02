@@ -92,21 +92,39 @@ và báo "bad CPU type". Dùng `/usr/bin/python3`, `/usr/bin/ruby`, `sips`, `git
      collection trên, không có catch-all.
    - Link `?code=` không tồn tại hoặc không có: thiệp chào chung, **không** tự tạo `guests`.
    - Số mâm = làm tròn lên (tổng `count` của RSVP `attending == "yes"` có event đó) / 10.
-6. **Hợp đồng nội dung thiệp (CMS)** — Firestore + Storage, cùng project C5 (gói Blaze).
+6. **Hợp đồng nội dung thiệp (CMS)** — nội dung ở Firestore (project C5, gói Spark), ảnh/nhạc ở
+   **Cloudflare R2** qua một Cloudflare Worker (Human chọn 2026-10-02 thay Firebase Storage).
    - `siteContent/published` và `siteContent/draft`: `{ data, updatedAt, updatedBy }`; `data` có
      **đúng shape `window.WEDDING_DATA`** (C2, kể cả field tuỳ chọn đã thêm như `featured`,
      `note`, `dressCode`). `siteContentHistory/{autoId}`: bản `published` cũ mỗi lần xuất bản
      (`{ data, publishedAt, publishedBy }`), dùng để khôi phục.
    - `events[].key` **không được sửa** từ trang quản lý (khách tham chiếu qua `invitedEvents`);
      thêm/xoá sự kiện cần ruling Lead.
-   - Ảnh/nhạc tải lên: Storage `content/<uuid>-large.webp`, `content/<uuid>-small.webp`,
-     nhạc `content/<uuid>.<mp3|m4a>`; `data` lưu URL tải công khai (download URL). Đường dẫn
-     tương đối cũ (`assets/...`) vẫn hợp lệ.
+   - Ảnh/nhạc tải lên: R2 key `content/<uuid>-large.webp`, `content/<uuid>-small.webp`, nhạc
+     `content/<uuid>.<mp3|m4a>`; `data` lưu URL công khai do Worker phục vụ
+     (`<worker-url>/content/<key>`). Đường dẫn tương đối cũ (`assets/...`) vẫn hợp lệ.
+   - Worker: `GET /content/<key>` công khai (cache dài, đúng Content-Type); `PUT /content/<key>`
+     và `DELETE /content/<key>` chỉ khi header `Authorization: Bearer <Firebase ID token>` hợp lệ
+     (chữ ký Google, `aud`/`iss` = project `thien-phuong-wedding-1025`, chưa hết hạn) **và**
+     người đó là admin theo C5 (super admin theo email, hoặc `accessRequests/{uid}.status ==
+     "approved"` đọc qua Firestore REST bằng chính token đó); key phải dưới `content/`, đúng loại
+     và kích thước; CORS chỉ cho origin của site (Pages + localhost dev).
    - Ảnh: cắt theo tỉ lệ ô (admin kéo chỉnh được), bản lớn cạnh dài ≤ 1600px, bản nhỏ ≤ 600px,
      WebP; mỗi file ảnh ≤ 2 MB, nhạc ≤ 10 MB.
-   - Quyền: ai cũng `get` `siteContent/published` và đọc `content/**` trên Storage; chỉ admin
-     (định nghĩa C5) đọc/ghi `siteContent/draft`, ghi `published`, đọc/ghi `siteContentHistory`,
-     ghi `content/**` (đúng loại `image/webp` / `audio/mpeg|audio/mp4`, đúng giới hạn kích thước).
+   - Quyền Firestore: ai cũng `get` `siteContent/published`; chỉ admin (C5) đọc/ghi
+     `siteContent/draft`, ghi `published`, đọc/ghi `siteContentHistory`. Quyền ghi R2 do Worker
+     thực thi như trên.
+   - Ràng buộc doc nội dung: `data` là map; `updatedAt`/`publishedAt` kiểu timestamp;
+     `siteContent/published` **không được xoá** (muốn quay lại thì khôi phục từ lịch sử);
+     `siteContentHistory` chỉ thêm mới, không sửa (xoá được bởi admin). Khi xuất bản, bản
+     `published` cũ được chép sang lịch sử với `publishedBy` = **admin đang xuất bản bản mới**
+     (người tạo bản sao lưu), `publishedAt` = `updatedAt` cũ của bản đó.
+   - Bản xuất bản **hợp lệ** khi `data` có: `couple.groom.shortName`, `couple.bride.shortName`,
+     `wedding.dateISO`, và mỗi phần tử `events` có `key`, `title`, `startISO`. Mảng (`events`,
+     `story`, `gallery`) được rỗng; object/field khác thiếu → dùng mặc định, **không** coi là hỏng.
+     Trình sửa nội dung phải kiểm đúng danh sách này trước khi cho xuất bản.
+   - URL trong `data` (ảnh, `mapUrl`, `facebook`, nhạc) chỉ `https:`/`http:` hoặc đường dẫn tương
+     đối; `dressCode` chỉ mã màu `#rgb`/`#rrggbb`. Thiệp bỏ qua giá trị sai thay vì hiển thị.
    - Thiệp: dùng `published.data` nếu đọc được trong thời gian chờ ngắn; không được → dùng
      `docs/wedding-data.js` (dự phòng, vẫn giữ trong repo). Xuất bản đầu tiên = nội dung
      `wedding-data.js` hiện tại.

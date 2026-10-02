@@ -81,6 +81,9 @@ và báo "bad CPU type". Dùng `/usr/bin/python3`, `/usr/bin/ruby`, `sips`, `git
      vẫn mở thiệp, gửi RSVP/lời chúc như khách, chỉ không có thêm quyền admin.
    - Timestamp do khách ghi (`rsvp.updatedAt`, `wishes.createdAt`) phải `== request.time`
      (client dùng `serverTimestamp()`); `wishes.name`/`message` không rỗng.
+   - `guests` (do trang quản lý tự kiểm, rules không kiểm): `name` 1–60 ký tự sau khi bỏ ký tự
+     vô hình, `salutation` ≤ 30, `group` ≤ 60, `phone` ≤ 20, `note` ≤ 500, `expectedCount` số
+     nguyên an toàn 1–20 (lưu kiểu integer).
    - `rsvp.name` ≤ 60; `rsvp.events` list ≤ 10 phần tử, mỗi phần tử string ≤ 50;
      `accessRequests.displayName` string hoặc null.
    - `mustChangePassword` là chốt chặn **giao diện**, không phải ranh giới bảo mật (rules không

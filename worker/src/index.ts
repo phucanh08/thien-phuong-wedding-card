@@ -5,7 +5,7 @@ import { AuthError, requireAdmin } from "./auth";
 import { keyFromPath, mediaKind, type MediaKind } from "./media";
 
 const IMMUTABLE = "public, max-age=31536000, immutable";
-const ALLOWED_ORIGIN = /^(?:https:\/\/phucanh08\.github\.io|http:\/\/(?:127\.0\.0\.1|localhost)(?::\d{1,5})?)$/;
+const ALLOWED_ORIGIN = /^(?:https:\/\/(?:phucanh08\.github\.io|thien-phuong-weddingcard\.anhlp\.com)|http:\/\/(?:127\.0\.0\.1|localhost)(?::\d{1,5})?)$/;
 
 function json(status: number, body: unknown, headers?: HeadersInit): Response {
   const response = Response.json(body, { status, headers });

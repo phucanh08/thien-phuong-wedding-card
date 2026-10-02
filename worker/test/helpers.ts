@@ -13,6 +13,7 @@ export const FIRESTORE_ACCESS =
 export const PROJECT = "thien-phuong-wedding-1025";
 export const ISS = "https://securetoken.google.com/thien-phuong-wedding-1025";
 export const ORIGIN = "https://phucanh08.github.io";
+export const CUSTOM_ORIGIN = "https://thien-phuong-weddingcard.anhlp.com";
 export const KID = "test-kid-1";
 
 export const UUID = "0f8fad5b-d9cb-469f-a165-70867728950e";

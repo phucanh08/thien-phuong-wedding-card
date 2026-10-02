@@ -3,7 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <!-- Không phóng cả trang (chỉ ảnh phóng được, pinch-zoom.js); Safari iOS bỏ qua user-scalable nên
+         no-page-zoom.js chặn thêm -->
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
     <meta name="format-detection" content="telephone=no">
     <!-- Trang nằm ở docs/v1/; tài nguyên dùng chung ở docs/ nên mọi đường dẫn tương đối tính từ ../ -->
     <base href="../">
@@ -18,6 +20,7 @@
             if (hash.length > 1) location.hash = hash; else window.scrollTo(0, 0);
         });
     </script>
+    <script src="no-page-zoom.js"></script>
     <!-- Title/description/og:* được điền từ nội dung thiệp (applyMeta ngay dưới) -->
     <title>Wedding</title>
     <meta name="description" content="">

@@ -13,6 +13,7 @@ import {
 import {
   FIREBASE_CONFIG, AUTH_EMULATOR_PORT, FIRESTORE_EMULATOR_PORT, USE_EMULATOR,
 } from "../firebase-shared.js";
+import { createGuestsSection } from "./guests.js";
 
 const USERNAME_DOMAIN = "thien-phuong-wedding.local";
 const USERNAME_PATTERN = /^[a-z0-9._-]{3,30}$/;
@@ -44,6 +45,8 @@ function getCreatorAuth() {
 }
 
 const $ = (id) => document.getElementById(id);
+
+const guests = createGuestsSection({ db, getUser: () => state.user });
 
 const state = {
   user: null,
@@ -194,6 +197,7 @@ function enterApp(user) {
   showView("view-app");
   showSection();
   subscribeRequests();
+  guests.start();
 }
 
 function currentSection() {
@@ -491,6 +495,7 @@ onAuthStateChanged(auth, (user) => {
   state.user = user;
   state.access = null;
   unsubscribeRequests();
+  guests.stop();
   if (!user) {
     showView("view-login");
     return;

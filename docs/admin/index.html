@@ -117,9 +117,136 @@
 
       <main class="app-main">
         <section data-panel="khach-moi" hidden>
-          <h2 class="h4 mb-3">Khách mời</h2>
-          <div class="card placeholder-card"><div class="card-body text-secondary">Danh sách khách mời và link thiệp riêng sẽ có ở bước tiếp theo.</div></div>
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+            <h2 class="h4 mb-0">Khách mời</h2>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-outline-secondary" id="btn-import-open">Nhập từ file</button>
+              <button type="button" class="btn btn-rose" id="btn-guest-add">+ Thêm khách</button>
+            </div>
+          </div>
+
+          <!-- Nhập danh sách từ Excel / CSV -->
+          <div class="card mb-3" id="import-panel" hidden>
+            <div class="card-body">
+              <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                <h3 class="h6 mb-0">Nhập danh sách khách từ Excel hoặc CSV</h3>
+                <button type="button" class="btn-close" id="btn-import-close" aria-label="Đóng"></button>
+              </div>
+              <p class="small text-secondary mb-2">
+                Tải file mẫu, điền mỗi khách một dòng rồi chọn file để xem trước. Cột <strong>Tên</strong> và
+                <strong>Bên</strong> (trai/gái) là bắt buộc; <strong>Sự kiện</strong> để trống là mời tất cả.
+                Dòng lỗi sẽ không được ghi.
+              </p>
+              <div class="d-flex flex-wrap gap-2 mb-3">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-template="xlsx">Tải file mẫu .xlsx</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-template="csv">Tải file mẫu .csv</button>
+              </div>
+              <label for="import-file" class="form-label small mb-1">Chọn file (.xlsx, .csv)</label>
+              <input type="file" id="import-file" class="form-control"
+                     accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
+              <div class="alert py-2 small mt-3 mb-0" id="import-message" role="status" hidden></div>
+
+              <div id="import-preview" class="mt-3" hidden>
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                  <strong class="small" id="import-summary"></strong>
+                  <button type="button" class="btn btn-sm btn-rose" id="btn-import-commit">Nhập</button>
+                </div>
+                <ul class="import-errors small mb-2" id="import-errors"></ul>
+                <div class="table-responsive import-table-wrap">
+                  <table class="table table-sm align-middle small mb-0 text-nowrap">
+                    <thead><tr><th>Dòng</th><th></th><th>Tên</th><th>Bên</th><th>Nhóm</th><th>Sự kiện</th><th class="text-end">Số người</th></tr></thead>
+                    <tbody id="import-rows"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lọc / tìm -->
+          <div class="guest-filters mb-2">
+            <input type="search" id="guest-search" class="form-control" placeholder="Tìm theo tên…" aria-label="Tìm theo tên">
+            <select id="guest-filter-side" class="form-select" aria-label="Lọc theo bên">
+              <option value="">Cả hai bên</option>
+              <option value="groom">Nhà trai</option>
+              <option value="bride">Nhà gái</option>
+            </select>
+            <select id="guest-filter-group" class="form-select" aria-label="Lọc theo nhóm">
+              <option value="">Mọi nhóm</option>
+            </select>
+          </div>
+          <div class="d-flex justify-content-between small text-secondary mb-2">
+            <span id="guest-count"></span>
+            <span id="guest-people"></span>
+          </div>
+          <div class="alert py-2 small" id="guest-error" role="alert" hidden></div>
+          <div id="guest-list" class="request-list"></div>
         </section>
+
+        <!-- Thêm / sửa khách -->
+        <dialog id="guest-dialog" class="guest-dialog" aria-labelledby="guest-dialog-title">
+          <form id="form-guest" novalidate>
+            <div class="guest-dialog-header">
+              <h3 class="h5 mb-0" id="guest-dialog-title">Thêm khách</h3>
+              <button type="button" class="btn-close" data-dialog-close aria-label="Đóng"></button>
+            </div>
+            <div class="guest-dialog-body">
+              <div class="row g-3">
+                <div class="col-4">
+                  <label for="guest-salutation" class="form-label">Xưng hô</label>
+                  <input type="text" id="guest-salutation" class="form-control" list="salutation-options" placeholder="Anh" autocomplete="off">
+                  <datalist id="salutation-options">
+                    <option value="Anh"></option><option value="Chị"></option><option value="Em"></option>
+                    <option value="Bạn"></option><option value="Cô"></option><option value="Chú"></option>
+                    <option value="Cô chú"></option><option value="Bác"></option><option value="Ông bà"></option>
+                    <option value="Anh chị"></option><option value="Gia đình"></option>
+                  </datalist>
+                </div>
+                <div class="col-8">
+                  <label for="guest-name" class="form-label">Tên <span class="text-danger">*</span></label>
+                  <input type="text" id="guest-name" class="form-control" autocomplete="off" required>
+                </div>
+                <div class="col-12 form-text mt-1" id="guest-greeting-preview"></div>
+                <div class="col-6">
+                  <label for="guest-side" class="form-label">Bên <span class="text-danger">*</span></label>
+                  <select id="guest-side" class="form-select" required>
+                    <option value="groom">Nhà trai</option>
+                    <option value="bride">Nhà gái</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label for="guest-group" class="form-label">Nhóm</label>
+                  <input type="text" id="guest-group" class="form-control" list="group-options" placeholder="Bạn đại học" autocomplete="off">
+                  <datalist id="group-options"></datalist>
+                </div>
+                <div class="col-12">
+                  <span class="form-label d-block">Mời dự <span class="text-danger">*</span></span>
+                  <div id="guest-events" class="guest-events"></div>
+                </div>
+                <div class="col-6">
+                  <label for="guest-count-input" class="form-label">Số người <span class="text-danger">*</span></label>
+                  <input type="number" id="guest-count-input" class="form-control" min="1" step="1" inputmode="numeric" required>
+                </div>
+                <div class="col-6">
+                  <label for="guest-phone" class="form-label">SĐT</label>
+                  <input type="tel" id="guest-phone" class="form-control" autocomplete="off">
+                </div>
+                <div class="col-12">
+                  <label for="guest-note" class="form-label">Ghi chú</label>
+                  <textarea id="guest-note" class="form-control" rows="2"></textarea>
+                  <div class="form-text">SĐT và ghi chú không hiện trên thiệp, nhưng ai có link thiệp riêng của khách này đều đọc được. Đừng ghi điều không muốn khách thấy.</div>
+                </div>
+              </div>
+              <div class="alert alert-danger py-2 small mt-3 mb-0" id="guest-form-error" role="alert" hidden></div>
+            </div>
+            <div class="guest-dialog-footer">
+              <span class="small text-secondary me-auto text-truncate" id="guest-dialog-code"></span>
+              <button type="button" class="btn btn-outline-secondary" data-dialog-close>Huỷ</button>
+              <button type="submit" class="btn btn-rose" id="btn-guest-save">Lưu</button>
+            </div>
+          </form>
+        </dialog>
+
+        <div class="toast-msg" id="toast" role="status" aria-live="polite" hidden></div>
 
         <section data-panel="xac-nhan" hidden>
           <h2 class="h4 mb-3">Xác nhận &amp; lời chúc</h2>
@@ -175,6 +302,8 @@
     </div>
   </div>
 
+  <!-- Danh sách sự kiện (events[].key) cho mục Khách mời -->
+  <script src="../wedding-data.js"></script>
   <script type="module" src="admin.js"></script>
 </body>
 </html>

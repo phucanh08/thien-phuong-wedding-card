@@ -3,6 +3,12 @@
 // Mọi giá trị chứa "TODO" là placeholder chờ nội dung thật.
 // Ảnh thật trong assets/images/photos/ (…-large 1600px, …-small 600px); QR và favicon vẫn là placeholder trong assets/images/placeholder/.
 window.WEDDING_DATA = {
+    // Thiệp khách vào từ đường dẫn gốc (/ và /?code=...): "v1" | "v2" | "both" (trang chọn giữa hai bản).
+    // Chỉ có tác dụng qua bản xuất bản (trang quản lý); chưa xuất bản thì đường dẫn gốc mở v1.
+    site: {
+        version: "v1"
+    },
+
     meta: {
         title: "Thiện & Phương Wedding",
         description: "Trân trọng kính mời bạn đến dự lễ cưới của Thiện & Phương vào ngày 25/10/2026.",

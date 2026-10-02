@@ -35,6 +35,28 @@ export async function loadWeddingContent({ timeoutMs = TIMEOUT_MS } = {}) {
     return { data: normalize(await loadFallback()), source: 'fallback' };
 }
 
+// Phiên bản thiệp mà đường dẫn gốc (docs/index.html) mở: site.version của bản xuất bản.
+// Chưa xuất bản, đọc lỗi, bản xuất bản hỏng (thiệp cũng bỏ nó) hoặc quá thời gian chờ -> 'v1'.
+// Không nạp wedding-data.js: khách không phải chờ thêm sau thời gian chờ.
+export async function loadCardVersion({ timeoutMs = TIMEOUT_MS } = {}) {
+    try {
+        const data = await fetchPublished(timeoutMs);
+        if (!findMissingField(data)) return cardVersion(data);
+    } catch (error) {
+        console.warn('Không đọc được phiên bản thiệp, mở v1:', error.message);
+    }
+    return DEFAULT_VERSION;
+}
+
+// site.version: 'v1' | 'v2' | 'both' (C6); thiếu hoặc sai -> 'v1'. Cùng luật cardVersion của
+// docs/admin/content-model.js.
+const CARD_VERSIONS = ['v1', 'v2', 'both'];
+const DEFAULT_VERSION = 'v1';
+function cardVersion(data) {
+    const version = isObject(data) && isObject(data.site) ? data.site.version : undefined;
+    return CARD_VERSIONS.includes(version) ? version : DEFAULT_VERSION;
+}
+
 async function fetchPublished(timeoutMs) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -120,6 +142,7 @@ function normalize(source) {
         return target;
     };
 
+    data.site = Object.assign(obj(data.site), { version: cardVersion(data) });
     data.meta = fill(obj(data.meta), ['title', 'description'], ['previewImage', 'favicon']);
     data.couple = obj(data.couple);
     ['groom', 'bride'].forEach(side => {

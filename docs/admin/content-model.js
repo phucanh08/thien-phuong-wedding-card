@@ -27,6 +27,14 @@ export function urlProblem(value) {
   return ["https:", "http:"].includes(protocol) ? null : "Chỉ nhận link http(s) hoặc đường dẫn trong trang.";
 }
 
+// Phiên bản thiệp khách vào từ đường dẫn gốc (site.version, C6). Cùng luật cardVersion của
+// docs/content-loader.js: thiếu hoặc sai giá trị -> "v1".
+export const CARD_VERSIONS = ["v1", "v2", "both"];
+export function cardVersion(data) {
+  const version = isObject(data) && isObject(data.site) ? data.site.version : undefined;
+  return CARD_VERSIONS.includes(version) ? version : "v1";
+}
+
 function isRealDate(value) {
   if (typeof value !== "string" || !DATE_TIME.test(value)) return false;
   const [y, m, d] = value.slice(0, 10).split("-").map(Number);

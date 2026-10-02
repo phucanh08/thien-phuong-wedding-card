@@ -2,8 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import {
   getAuth, initializeAuth, inMemoryPersistence, connectAuthEmulator,
-  onAuthStateChanged, signInWithPopup, GoogleAuthProvider,
-  signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile,
+  onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile,
   EmailAuthProvider, reauthenticateWithCredential, updatePassword, signOut,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {
@@ -19,7 +18,6 @@ import { createContentSection } from "./content-editor.js";
 
 const USERNAME_DOMAIN = "thien-phuong-wedding.local";
 const USERNAME_PATTERN = /^[a-z0-9._-]{3,30}$/;
-const SUPER_ADMIN_GOOGLE_EMAIL = "phucanhdn01@gmail.com";
 const SUPER_ADMIN_PASSWORD_EMAIL = `admin@${USERNAME_DOMAIN}`;
 const MIN_PASSWORD_LENGTH = 8;
 const SECTIONS = ["khach-moi", "xac-nhan", "thong-ke", "noi-dung", "quan-tri"];
@@ -71,13 +69,8 @@ function emailToUsername(email) {
   return email && email.endsWith(suffix) ? email.slice(0, -suffix.length) : null;
 }
 
-function providerOf(user) {
-  return user.providerData.some((p) => p.providerId === "password") ? "password" : "google";
-}
-
 function isSuperAdmin(user) {
-  return (user.email === SUPER_ADMIN_GOOGLE_EMAIL && user.emailVerified)
-    || user.email === SUPER_ADMIN_PASSWORD_EMAIL;
+  return user.email === SUPER_ADMIN_PASSWORD_EMAIL;
 }
 
 function accountLabel(user) {
@@ -109,11 +102,6 @@ function authErrorMessage(error) {
       return "Tên đăng nhập hoặc mật khẩu không đúng.";
     case "auth/too-many-requests":
       return "Thử sai quá nhiều lần. Vui lòng đợi một lúc rồi thử lại.";
-    case "auth/popup-blocked":
-      return "Trình duyệt chặn cửa sổ đăng nhập Google. Hãy cho phép popup rồi thử lại.";
-    case "auth/popup-closed-by-user":
-    case "auth/cancelled-popup-request":
-      return "";
     case "auth/network-request-failed":
       return "Không kết nối được. Kiểm tra mạng rồi thử lại.";
     case "auth/weak-password":
@@ -140,53 +128,25 @@ function accessRef(uid) {
   return doc(db, "accessRequests", uid);
 }
 
-async function createPendingRequest(user) {
-  const provider = providerOf(user);
-  const data = {
-    email: user.email || "",
-    displayName: user.displayName || "",
-    provider,
-    status: "pending",
-    mustChangePassword: false,
-    requestedAt: serverTimestamp(),
-  };
-  if (provider === "password") data.username = emailToUsername(user.email) || "";
-  await setDoc(accessRef(user.uid), data);
-  return data;
-}
-
 async function resolveAccess(user) {
   showView("view-loading");
   const snap = await getDoc(accessRef(user.uid));
   state.access = snap.exists() ? snap.data() : null;
 
   const superAdmin = isSuperAdmin(user);
-  const provider = providerOf(user);
 
-  // Mật khẩu tạm (do admin cấp) hoặc super admin mật khẩu chưa có doc → phải đổi mật khẩu trước.
-  if (provider === "password") {
-    const mustChange = state.access ? state.access.mustChangePassword === true : superAdmin;
-    if (mustChange) return showChangePassword(user);
-  }
+  // Mật khẩu tạm (do admin cấp) hoặc super admin chưa có doc → phải đổi mật khẩu trước.
+  const mustChange = state.access ? state.access.mustChangePassword === true : superAdmin;
+  if (mustChange) return showChangePassword(user);
 
-  if (superAdmin) return enterApp(user);
-
-  if (!state.access) state.access = await createPendingRequest(user);
-
-  if (state.access.status === "approved") return enterApp(user);
-  return showPending(user, state.access.status);
+  if (superAdmin || state.access?.status === "approved") return enterApp(user);
+  return showNoAccess(user);
 }
 
-function showPending(user, status) {
-  const rejected = status === "rejected";
-  $("pending-icon").textContent = rejected ? "⛔" : "⏳";
-  $("pending-title").textContent = rejected ? "Yêu cầu truy cập bị từ chối" : "Tài khoản đang chờ duyệt";
-  $("pending-text").textContent = rejected
-    ? "Quản trị viên đã từ chối yêu cầu truy cập của tài khoản này. Liên hệ cô dâu chú rể nếu cần được cấp quyền."
-    : "Yêu cầu truy cập đã được gửi. Khi quản trị viên duyệt, hãy tải lại trang để vào trang quản lý.";
-  $("pending-account").textContent = accountLabel(user);
-  $("btn-recheck").hidden = rejected;
-  showView("view-pending");
+// Đăng nhập được nhưng chưa có quyền: không nạp dữ liệu nào, chỉ cho đăng xuất hoặc kiểm tra lại.
+function showNoAccess(user) {
+  $("no-access-account").textContent = accountLabel(user);
+  showView("view-no-access");
 }
 
 function showChangePassword(user) {
@@ -239,11 +199,9 @@ window.addEventListener("hashchange", () => {
 // ---------- Quản trị viên ----------
 
 const STATUS_LABEL = {
-  pending: ["Chờ duyệt", "text-bg-warning"],
-  approved: ["Đã duyệt", "text-bg-success"],
-  rejected: ["Từ chối", "text-bg-secondary"],
+  approved: ["Có quyền", "text-bg-success"],
 };
-const STATUS_ORDER = { pending: 0, approved: 1, rejected: 2 };
+const NO_ACCESS_LABEL = ["Chưa có quyền", "text-bg-secondary"];
 
 function subscribeRequests() {
   if (state.unsubscribeRequests) return;
@@ -253,7 +211,7 @@ function subscribeRequests() {
       showMessage($("requests-error"), "");
       const items = snapshot.docs.map((d) => ({ uid: d.id, ...d.data() }));
       items.sort((a, b) =>
-        (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)
+        (a.status === "approved" ? 0 : 1) - (b.status === "approved" ? 0 : 1)
         || (b.requestedAt?.toMillis?.() ?? 0) - (a.requestedAt?.toMillis?.() ?? 0));
       renderRequests(items);
     },
@@ -264,6 +222,9 @@ function subscribeRequests() {
 function unsubscribeRequests() {
   if (state.unsubscribeRequests) state.unsubscribeRequests();
   state.unsubscribeRequests = null;
+  // Đăng xuất rồi đăng nhập tài khoản khác không được thấy danh sách của phiên trước.
+  $("requests-list").replaceChildren();
+  $("requests-count").textContent = "";
 }
 
 function el(tag, className, text) {
@@ -292,13 +253,10 @@ function renderRequests(items) {
   const list = $("requests-list");
   list.replaceChildren();
 
-  const pending = items.filter((i) => i.status === "pending").length;
-  $("pending-badge").textContent = String(pending);
-  $("pending-badge").hidden = pending === 0;
-  $("requests-count").textContent = items.length ? `${items.length} tài khoản · ${pending} chờ duyệt` : "";
+  $("requests-count").textContent = items.length ? `${items.length} tài khoản` : "";
 
   if (!items.length) {
-    list.append(el("p", "text-secondary small mb-0", "Chưa có yêu cầu truy cập nào."));
+    list.append(el("p", "text-secondary small mb-0", "Chưa có tài khoản nào."));
     return;
   }
 
@@ -309,14 +267,11 @@ function renderRequests(items) {
 
     const info = el("div", "request-info");
     const title = el("div", "name", item.displayName || item.username || item.email || item.uid);
-    const [label, badgeClass] = STATUS_LABEL[item.status] || [item.status, "text-bg-light"];
+    const [label, badgeClass] = STATUS_LABEL[item.status] || NO_ACCESS_LABEL;
     title.append(" ", el("span", `badge ${badgeClass} align-middle`, label));
     info.append(title);
 
-    const account = item.provider === "password"
-      ? `Tên đăng nhập: ${item.username || emailToUsername(item.email) || "?"}`
-      : `Google: ${item.email}`;
-    const extras = [account];
+    const extras = [`Tên đăng nhập: ${item.username || emailToUsername(item.email) || item.email || "?"}`];
     if (item.mustChangePassword) extras.push("chưa đổi mật khẩu tạm");
     if (item.requestedAt) extras.push(`gửi ${formatTime(item.requestedAt)}`);
     if (item.decidedBy) extras.push(`xử lý bởi ${emailToUsername(item.decidedBy) || item.decidedBy}`);
@@ -325,17 +280,12 @@ function renderRequests(items) {
 
     // Không tự xử lý chính mình; super admin không phụ thuộc doc nên cũng không có nút.
     const isSelf = state.user && item.uid === state.user.uid;
-    const isSuper = item.email === SUPER_ADMIN_PASSWORD_EMAIL || item.email === SUPER_ADMIN_GOOGLE_EMAIL;
+    const isSuper = item.email === SUPER_ADMIN_PASSWORD_EMAIL;
     if (!isSelf && !isSuper) {
       const actions = el("div", "request-actions");
       if (item.status !== "approved") {
-        actions.append(actionButton(item.status === "rejected" ? "Duyệt lại" : "Duyệt", "btn-success",
-          () => decide(item.uid, "approved")));
-      }
-      if (item.status === "pending") {
-        actions.append(actionButton("Từ chối", "btn-outline-danger", () => decide(item.uid, "rejected")));
-      }
-      if (item.status === "approved") {
+        actions.append(actionButton("Cấp lại quyền", "btn-success", () => decide(item.uid, "approved")));
+      } else {
         actions.append(actionButton("Thu hồi quyền", "btn-outline-danger", () => {
           if (!confirm("Thu hồi quyền truy cập của tài khoản này?")) return Promise.resolve();
           return decide(item.uid, "rejected");
@@ -410,15 +360,6 @@ $("form-create").addEventListener("submit", async (event) => {
 
 // ---------- Đăng nhập / đăng xuất / đổi mật khẩu ----------
 
-$("btn-google").addEventListener("click", async () => {
-  showMessage($("login-error"), "");
-  try {
-    await signInWithPopup(auth, new GoogleAuthProvider());
-  } catch (error) {
-    showMessage($("login-error"), authErrorMessage(error));
-  }
-});
-
 $("form-login").addEventListener("submit", async (event) => {
   event.preventDefault();
   const error = $("login-error");
@@ -463,7 +404,7 @@ $("form-change-password").addEventListener("submit", async (event) => {
       // Người dùng chỉ được tự sửa đúng field này, true → false.
       await updateDoc(accessRef(user.uid), { mustChangePassword: false });
     } else {
-      // Super admin mật khẩu lần đầu: chưa có doc, tạo doc đã duyệt cho chính mình.
+      // Super admin lần đầu: chưa có doc, tạo doc đã duyệt cho chính mình.
       await setDoc(accessRef(user.uid), {
         email: user.email,
         displayName: user.displayName || "",

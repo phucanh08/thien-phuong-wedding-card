@@ -675,27 +675,55 @@
 
     // ===== Tự cuộn chậm sau khi mở phong bì; dừng ngay khi khách tự thao tác =====
     // Nghe thao tác từ lúc thiệp hiện ra và cuộn được (armAutoScroll), không đợi tới lúc bắt đầu cuộn:
-    // khách chạm/vuốt trong khoảng chờ đó thì tự cuộn không chạy nữa. Đã dừng thì không chạy lại.
+    // khách chạm/vuốt/cuộn/lăn chuột/bấm phím là dừng, kể cả trong khoảng chờ trước khi bắt đầu.
+    // AUTO_SCROLL_IDLE ms không thao tác thì cuộn tiếp từ vị trí đang đứng; mỗi lần thao tác đếm lại.
+    // Không chạy lại khi đang mở sheet, xem ảnh lớn, gõ vào ô nhập hay đã ở cuối trang: hết các trạng thái
+    // đó thì đếm lại từ lúc hết (Human duyệt 2026-10-02).
+    const AUTO_SCROLL_IDLE = 30000;
+    const ACTIVITY_EVENTS = ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown', 'scroll'];
     let autoScrollArmed = false;
     let autoScrollFrame = 0;
-    const STOP_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+    let lastActivity = null; // lần thao tác cuối (hoặc lúc hết trạng thái chặn); null = chưa thao tác
 
     function armAutoScroll() {
-        if (reducedMotion) return;
+        if (reducedMotion || autoScrollArmed) return;
         autoScrollArmed = true;
-        STOP_EVENTS.forEach(type => window.addEventListener(type, stopAutoScroll, { capture: true, passive: true }));
+        ACTIVITY_EVENTS.forEach(type => window.addEventListener(type, onActivity, { capture: true, passive: true }));
+        setInterval(resumeAutoScroll, 500);
+    }
+
+    function onActivity(event) {
+        if (event.type === 'scroll' && autoScrollFrame) return; // cuộn do chính tự cuộn
+        stopAutoScroll();
     }
 
     function stopAutoScroll() {
-        if (!autoScrollArmed) return;
-        autoScrollArmed = false;
+        lastActivity = performance.now();
         cancelAnimationFrame(autoScrollFrame);
         autoScrollFrame = 0;
-        STOP_EVENTS.forEach(type => window.removeEventListener(type, stopAutoScroll, true));
     }
 
+    function autoScrollBlocked() {
+        const root = document.documentElement;
+        const active = document.activeElement;
+        return root.classList.contains('v2-sheet-open') || root.classList.contains('lg-on')
+            || !!(active && (['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable))
+            || window.scrollY >= root.scrollHeight - window.innerHeight - 1;
+    }
+
+    // Lần đầu (openEnvelope): chỉ khi khách chưa thao tác từ lúc thiệp hiện ra
     function startAutoScroll() {
-        if (!autoScrollArmed || autoScrollFrame) return;
+        if (lastActivity === null) runAutoScroll();
+    }
+
+    function resumeAutoScroll() {
+        if (autoScrollFrame || lastActivity === null) return;
+        if (autoScrollBlocked()) lastActivity = performance.now();
+        else if (performance.now() - lastActivity >= AUTO_SCROLL_IDLE) runAutoScroll();
+    }
+
+    function runAutoScroll() {
+        if (!autoScrollArmed || autoScrollFrame || autoScrollBlocked()) return;
         let last = performance.now();
         let y = window.scrollY;
         const step = now => {

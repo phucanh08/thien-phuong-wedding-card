@@ -28,13 +28,16 @@ const firebaseConfig = {
 };
 
 // Mở thiệp ở localhost / 127.0.0.1 thì nối Firestore emulator, không chạm dữ liệu thật.
-const FIRESTORE_EMULATOR = { host: '127.0.0.1', port: 8181 };
+const FIRESTORE_EMULATOR = { host: '127.0.0.1', port: 8282 };
 
 const GUEST_CODE_PATTERN = /^[a-z2-9]{8}$/;
 const WISH_NAME_MAX = 60;
 const WISH_MESSAGE_MAX = 500;
 const RSVP_COUNT_MAX = 20;
 const WISHES_SHOWN = 200;
+const LOOKUP_TIMEOUT_MS = 6000;
+const LOOKUP_RETRY_TIMEOUT_MS = 4000;
+const WRITE_TIMEOUT_MS = 8000;
 const ATTENDING_BY_OPTION = { Y: 'yes', N: 'no', none: 'maybe' };
 
 const app = initializeApp(firebaseConfig);
@@ -44,15 +47,25 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
 }
 
 // ===== Chào khách =====
-// Chỉ đọc guests/{code}; code lạ hoặc không có thì giữ lời chào chung, không tạo khách.
-async function loadGuest(code) {
-    if (!code || !GUEST_CODE_PATTERN.test(code)) return null;
+// Firestore không tới được thì get/set chờ mãi -> mọi lời gọi mạng đều có hạn chót.
+function withTimeout(promise, ms) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('timeout')), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+// Chỉ đọc guests/{code}. Trả { guest } (guest = null nếu code lạ/không có) hoặc { failed: true }
+// khi tra cứu lỗi: "không tồn tại" và "không tra được" phải tách bạch để RSVP không ghi nhầm thành bản không mã.
+async function lookupGuest(code, timeoutMs) {
+    if (!code || !GUEST_CODE_PATTERN.test(code)) return { guest: null };
     try {
-        const snapshot = await getDoc(doc(db, 'guests', code));
-        return snapshot.exists() ? { code: snapshot.id, ...snapshot.data() } : null;
+        const snapshot = await withTimeout(getDoc(doc(db, 'guests', code)), timeoutMs);
+        return { guest: snapshot.exists() ? { code: snapshot.id, ...snapshot.data() } : null };
     } catch (error) {
         console.warn('Không đọc được thông tin khách mời:', error);
-        return null;
+        return { failed: true };
     }
 }
 
@@ -67,9 +80,11 @@ function greetGuest(guest) {
     if (!wishName.value.trim()) wishName.value = (guest.name || '').slice(0, WISH_NAME_MAX);
 
     // Khách có danh sách sự kiện được mời: chỉ hiện các sự kiện đó, chọn sẵn.
+    // Danh sách không khớp sự kiện nào (dữ liệu sai) thì giữ nguyên, hiện tất cả sự kiện.
     const invited = Array.isArray(guest.invitedEvents) ? guest.invitedEvents : [];
-    if (invited.length) {
-        document.querySelectorAll('#rsvp-form input[name="events"]').forEach(input => {
+    const choices = Array.from(document.querySelectorAll('#rsvp-form input[name="events"]'));
+    if (choices.some(input => invited.includes(input.value))) {
+        choices.forEach(input => {
             const isInvited = invited.includes(input.value);
             input.checked = isInvited;
             input.closest('.rsvp-event-choice').style.display = isInvited ? '' : 'none';
@@ -91,6 +106,10 @@ async function submitRsvp(event) {
     event.preventDefault();
     const form = event.currentTarget;
     await guestReady;
+    if (rsvpAnonymousSent) {
+        showRsvpMessage(form, 'success', 'Bạn đã xác nhận rồi, cảm ơn bạn!');
+        return;
+    }
     const name = document.getElementById('guest-name').value.trim();
     const attending = ATTENDING_BY_OPTION[document.getElementById('attendance_status_id').value];
     if (!name || !attending) {
@@ -106,6 +125,30 @@ async function submitRsvp(event) {
     const events = attending === 'no' ? [] :
         Array.from(form.querySelectorAll('input[name="events"]:checked'), input => input.value);
 
+    const button = document.getElementById('send-confirm-btn');
+    button.disabled = true;
+    try {
+        // Lần tra đầu lỗi: thử lại; vẫn lỗi thì báo khách chứ không ghi bản không mã.
+        if (guestLookupFailed) {
+            const retry = await lookupGuest(guestId, LOOKUP_RETRY_TIMEOUT_MS);
+            if (retry.failed) {
+                showRsvpMessage(form, 'error', 'Không kết nối được máy chủ, bạn vui lòng thử lại sau ít phút.');
+                return;
+            }
+            guestLookupFailed = false;
+            currentGuest = retry.guest;
+            if (currentGuest) greetGuest(currentGuest);
+        }
+        await writeRsvp(form, name, attending, count, events);
+    } catch (error) {
+        console.error('Không gửi được xác nhận tham dự:', error);
+        showRsvpMessage(form, 'error', 'Có lỗi xảy ra, bạn vui lòng thử lại.');
+    } finally {
+        validateSendConfirmBtn();
+    }
+}
+
+async function writeRsvp(form, name, attending, count, events) {
     const data = {
         code: currentGuest ? currentGuest.code : null,
         name,
@@ -115,23 +158,13 @@ async function submitRsvp(event) {
         updatedAt: serverTimestamp()
     };
 
-    const button = document.getElementById('send-confirm-btn');
-    button.disabled = true;
-    try {
-        // Khách có code: một doc rsvp/{code}, gửi lại thì ghi đè. Khách không có code: doc mới.
-        if (currentGuest) {
-            await setDoc(doc(db, 'rsvp', currentGuest.code), data);
-        } else {
-            await addDoc(collection(db, 'rsvp'), data);
-        }
-        rsvpData = data;
-        showRsvpMessage(form, 'success', 'Cảm ơn bạn đã xác nhận, hẹn gặp bạn trong ngày vui!');
-    } catch (error) {
-        console.error('Không gửi được xác nhận tham dự:', error);
-        showRsvpMessage(form, 'error', 'Có lỗi xảy ra, bạn vui lòng thử lại.');
-    } finally {
-        validateSendConfirmBtn();
-    }
+    // Khách có code: một doc rsvp/{code}, gửi lại thì ghi đè. Khách không có code: một doc mới
+    // (ref giữ lại để thử lại sau timeout không đẻ thêm doc), và chỉ gửi được một lần (rules chỉ cho create).
+    const ref = currentGuest ? doc(db, 'rsvp', currentGuest.code) : (anonymousRsvpRef ||= doc(collection(db, 'rsvp')));
+    await withTimeout(setDoc(ref, data), WRITE_TIMEOUT_MS);
+    if (!currentGuest) rsvpAnonymousSent = true;
+    rsvpData = data;
+    showRsvpMessage(form, 'success', 'Cảm ơn bạn đã xác nhận, hẹn gặp bạn trong ngày vui!');
 }
 
 // ===== Sổ lưu bút =====
@@ -158,12 +191,12 @@ async function submitWish(event) {
     const button = document.getElementById('btn-submit-comment');
     button.disabled = true;
     try {
-        await addDoc(collection(db, 'wishes'), {
+        await withTimeout(addDoc(collection(db, 'wishes'), {
             name,
             message,
             code: currentGuest ? currentGuest.code : null,
             createdAt: serverTimestamp()
-        });
+        }), WRITE_TIMEOUT_MS);
         document.getElementById('detail-comment').value = '';
         success.textContent = 'Cảm ơn bạn đã gửi lời chúc!';
         success.style.display = 'block';
@@ -202,9 +235,13 @@ function listenWishes() {
 // ===== Khởi động =====
 // Form gửi trước khi tra xong khách vẫn phải gắn đúng code -> các handler chờ guestReady.
 guestId = guestId ? guestId.trim().toLowerCase() : null;
-const guestReady = loadGuest(guestId).then(guest => {
-    currentGuest = guest;
-    if (guest) greetGuest(guest);
+let guestLookupFailed = false;
+let anonymousRsvpRef = null;
+let rsvpAnonymousSent = false;
+const guestReady = lookupGuest(guestId, LOOKUP_TIMEOUT_MS).then(result => {
+    guestLookupFailed = Boolean(result.failed);
+    currentGuest = result.guest || null;
+    if (currentGuest) greetGuest(currentGuest);
 });
 document.getElementById('rsvp-form').addEventListener('submit', submitRsvp);
 document.getElementById('wish-form').addEventListener('submit', submitWish);

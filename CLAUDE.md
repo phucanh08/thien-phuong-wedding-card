@@ -6,7 +6,9 @@ v2, theo mẫu "Nhà Có Hỷ" (`https://vowry.me/template/nha-co-hy/demo/`).
 
 ## Chạy local
 
-Web tĩnh, không build. Gốc site là `docs/` (nguồn GitHub Pages).
+Web tĩnh, không build. Gốc site là `docs/` (nguồn GitHub Pages, nhánh `feat/thien-phuong-card`).
+Tên miền: `https://thien-phuong-weddingcard.anhlp.com` (`docs/CNAME`, DNS Cloudflare chỉ DNS; Human tạo
+2026-10-02); `phucanh08.github.io/thien-phuong-wedding-card/…` chuyển 301 sang tên miền, giữ path/query.
 
 ```bash
 /usr/bin/python3 -m http.server 8080 --directory docs
@@ -34,9 +36,14 @@ bản x86_64 và chạy bình thường. Phục vụ web tĩnh vẫn dùng `/usr
 
 ## Cấu trúc đích
 
-- `docs/index.html` — đọc bản xuất bản một lần rồi chuyển sang `docs/v2/`, giữ `?code=` và `#hash`.
-- `docs/v2/` (mẫu "Nhà Có Hỷ") — thiệp duy nhất, **không minify**; lấy nội dung qua
-  `docs/content-loader.js`. `docs/v1/index.html` chỉ còn là trang chuyển hướng sang `/v2/` cho link cũ.
+- `docs/index.html` — thiệp duy nhất (mẫu "Nhà Có Hỷ"), **không minify**, mở thẳng ở `/` và
+  `/?code=`; lấy nội dung qua `docs/content-loader.js`. Có `<meta name="robots" content="noindex,
+  nofollow">` (thiệp riêng tư, Human 2026-10-02) — không bỏ.
+- `docs/v2/` — script/CSS/ảnh của thiệp (`card.js`, `v2.js`, `v2.css`, `dresscode.js`,
+  `gallery-grid.js`, `assets/`). `docs/v2/index.html` và `docs/v1/index.html` chỉ còn là trang chuyển
+  hướng về `/` cho link cũ, giữ `?code=` và `#hash`.
+- Trang quản lý xem trước thiệp bằng cách tải `docs/index.html` và chèn `<base>` trỏ gốc site
+  (`docs/admin/content-preview.js`).
 - `docs/wedding-data.js` — nội dung dự phòng (C6): tên, gia đình, sự kiện, ngân hàng, album,
   chuyện tình, nhạc. Markup đọc từ dữ liệu; không hard-code nội dung trong HTML.
 - `docs/firebase-config.js` — cấu hình Firestore (`guests`, `rsvp`, `wishes`).
@@ -64,8 +71,11 @@ bản x86_64 và chạy bình thường. Phục vụ web tĩnh vẫn dùng `/usr
    | `wishes` | auto id | `name` string ≤ 60, `message` string ≤ 500, `code` string\|null, `createdAt` timestamp |
    | `accessRequests` | `uid` Firebase Auth | `email`, `displayName`, `provider` `"google"\|"password"`, `username` string? (chỉ tài khoản mật khẩu), `status` `"pending"\|"approved"\|"rejected"`, `mustChangePassword` bool, `requestedAt`, `decidedAt`?, `decidedBy`? |
 
-   Đăng nhập trang quản lý (Auth providers đã bật: Google, Email/Password):
-   - **Google**: tài khoản lạ → tạo `accessRequests/{uid}` `pending`, chờ admin duyệt.
+   Đăng nhập trang quản lý **chỉ bằng tên đăng nhập + mật khẩu** (Human 2026-10-02: bỏ Google; Auth
+   provider Google đã tắt, Email/Password bật). Trang quản lý không còn nút Google, không tự tạo
+   `accessRequests`; người đăng nhập không có doc `approved` (và không phải super admin) → màn "chưa có
+   quyền", không đọc dữ liệu. `firestore.rules` **không đổi** theo việc này: giá trị `"google"`,
+   `"pending"` và quyền tự tạo doc `pending` vẫn còn ở tầng rules (không còn client nào dùng).
    - **Tên đăng nhập + mật khẩu**: người dùng gõ `username` (`[a-z0-9._-]{3,30}`); app đổi thành
      email ngầm `<username>@thien-phuong-wedding.local`. Admin tạo tài khoản cho người khác ngay
      trong trang quản lý (tạo user Auth bằng một Firebase app phụ để không đăng xuất admin) và
@@ -118,7 +128,9 @@ bản x86_64 và chạy bình thường. Phục vụ web tĩnh vẫn dùng `/usr
      (chữ ký Google, `aud`/`iss` = project `thien-phuong-wedding-1025`, chưa hết hạn) **và**
      người đó là admin theo C5 (super admin theo email, hoặc `accessRequests/{uid}.status ==
      "approved"` đọc qua Firestore REST bằng chính token đó); key phải dưới `content/`, đúng loại
-     và kích thước; CORS chỉ cho origin của site (Pages + localhost dev).
+     và kích thước; CORS chỉ cho origin của site: `https://thien-phuong-weddingcard.anhlp.com`,
+     `https://phucanh08.github.io`, `http://localhost`/`127.0.0.1` (mọi cổng) — `ALLOWED_ORIGIN` trong
+     `worker/src/index.ts`; đổi tên miền thì sửa + deploy Worker và thêm authorized domain Firebase Auth.
    - Ảnh: cắt theo tỉ lệ ô (admin kéo chỉnh được), bản lớn cạnh dài ≤ 1600px, bản nhỏ ≤ 600px,
      WebP; mỗi file ảnh ≤ 2 MB, nhạc ≤ 10 MB.
    - Quyền Firestore: ai cũng `get` `siteContent/published`; chỉ admin (C5) đọc/ghi
@@ -139,10 +151,11 @@ bản x86_64 và chạy bình thường. Phục vụ web tĩnh vẫn dùng `/usr
      `published.data` gần nhất đã lưu trên máy khách (localStorage, theo `updateTime`, bản cũ
      không đè bản mới, qua cùng kiểm hợp lệ/normalize; Human duyệt 2026-10-02); chưa có bản lưu →
      `docs/wedding-data.js` (dự phòng, vẫn giữ trong repo). Mỗi lần vẽ đúng một nguồn
-     (`source`: `published` | `cached` | `fallback`). Đường vào qua `/` đọc Firestore một lần và
-     chuyển kết quả sang trang thiệp. Xuất bản đầu tiên = nội dung `wedding-data.js` hiện tại.
-   - Chỉ còn thiệp v2 (Human chọn 2026-10-02): `/`, `/?code=`, `/v1/…` đều mở `/v2/`, giữ
-     `?code=`/`#hash`. Field cũ `site.version` còn trong data nhưng bị bỏ qua.
+     (`source`: `published` | `cached` | `fallback`), mỗi lượt mở đọc `published` một lần, chờ tối đa
+     `TIMEOUT_MS` (2500 ms). Xuất bản đầu tiên = nội dung `wedding-data.js` hiện tại.
+   - Chỉ còn một thiệp (Human chọn 2026-10-02), nằm ở gốc site: `/` và `/?code=` vẽ thiệp trực tiếp (URL
+     không có `/v2`); link cũ `/v2/…`, `/v1/…` chuyển về `/…`, giữ `?code=`/`#hash`. Field cũ
+     `site.version` còn trong data nhưng bị bỏ qua.
    - Field chỉ thiệp v1 cũ dùng (`couple.*.photo`, `couple.*.bio`, `couple.*.facebook`,
      `wedding.lunarText`, `events[].image`, `gallery[].featured`) giữ nguyên trong data. Trang quản lý
      không hiện, không sửa các field này.

@@ -28,9 +28,9 @@ window.WEDDING_DATA = {
             birthday: "TODO: dd/mm/yyyy",
             bio: "TODO: vài dòng giới thiệu về cô dâu.",
             photo: "assets/images/photos/photo-01-small.webp",
-            father: "TODO: tên bố cô dâu",
-            mother: "TODO: tên mẹ cô dâu",
-            address: "TODO: địa chỉ nhà gái",
+            father: "Triệu Văn Tiến",
+            mother: "Nguyễn Thị Lan",
+            address: "Khu Ngọc Tỉnh - Xã Lâm Thao - Tỉnh Phú Thọ",
             facebook: null
         }
     },
@@ -78,14 +78,15 @@ window.WEDDING_DATA = {
         },
         {
             key: "bride-drinks",
-            title: "UỐNG NƯỚC, ĂN CỖ NHÀ GÁI",
+            title: "TIỆC THÂN MẬT NHÀ GÁI",
             side: "bride",
-            startISO: "2026-10-24",
-            endISO: "2026-10-24",
+            startISO: "2026-10-24T16:00:00+07:00",
+            endISO: "2026-10-24T17:00:00+07:00",
             lunarText: "15 tháng 9 năm Bính Ngọ",
-            venue: "TODO: tư gia nhà gái",
-            address: "TODO: địa chỉ nhà gái",
-            mapUrl: "https://maps.google.com/?q=TODO",
+            venue: "Tư gia nhà gái",
+            address: "Ngách 08/40 Lý Dương Cảnh (Khu Ngọc Tỉnh) - Xã Lâm Thao - Tỉnh Phú Thọ",
+            mapUrl: "https://maps.app.goo.gl/idpeM6Fe8np7LDqF7",
+            note: "Đón khách 15h · Bạn bè 16h–17h", // tuỳ chọn: dòng ghi chú dưới sự kiện
             image: "assets/images/photos/photo-11-small.webp",
             dressCode: ["#504e63", "#cc8a4d", "#bc5f6a"]
         },
@@ -137,18 +138,16 @@ window.WEDDING_DATA = {
 
     donate: {
         groom: {
-            bank: "TODO: ngân hàng",
-            accountName: "TODO: TEN CHU TAI KHOAN",
-            accountNumber: "TODO: số tài khoản",
-            qr: "assets/images/placeholder/qr.svg",
-            branch: "TODO: chi nhánh" // tuỳ chọn
+            bank: "MB Bank (Ngân hàng Quân Đội)",
+            accountName: "NGUYEN DUC THIEN",
+            accountNumber: "608062626",
+            qr: "assets/images/qr/groom.webp"
         },
         bride: {
-            bank: "TODO: ngân hàng",
-            accountName: "TODO: TEN CHU TAI KHOAN",
-            accountNumber: "TODO: số tài khoản",
-            qr: "assets/images/placeholder/qr.svg",
-            branch: "TODO: chi nhánh"
+            bank: "Techcombank",
+            accountName: "TRIEU THI PHUONG",
+            accountNumber: "6366661998",
+            qr: "assets/images/qr/bride.webp"
         }
     },
 

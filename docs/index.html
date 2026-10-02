@@ -1216,6 +1216,7 @@
                         ${start.time ? '' : '<p class="m-0"><small>Giờ: đang cập nhật</small></p>'}
                         ${e.lunarText ? `<p class="m-0"><small>(${esc(e.lunarText)})</small></p>` : ''}
                         <p class="card-text"><span>${esc(e.venue)} -</span> ${esc(e.address)}</p>
+                        ${e.note ? `<p class="m-0"><small>${esc(e.note)}</small></p>` : ''}
                         <div class="calendar-button" style="display:none">
                             <div class="atcb" style="display:none">${esc(JSON.stringify(atcb))}</div>
                         </div>

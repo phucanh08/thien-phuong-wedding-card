@@ -1,0 +1,29 @@
+/* Chụm hai ngón lên ảnh: bản sao ảnh nổi trên nền tối (pinch-zoom.js) */
+.pz-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .8);
+    opacity: 0;
+    z-index: 2147483646;
+    pointer-events: none;
+}
+.pz-clone {
+    position: fixed;
+    margin: 0;
+    padding: 0;
+    max-width: none;
+    max-height: none;
+    z-index: 2147483647;
+    transform-origin: 0 0;
+    pointer-events: none;
+    will-change: transform;
+}
+.pz-returning.pz-clone {
+    transition: transform .3s cubic-bezier(.2, .8, .2, 1);
+}
+.pz-returning.pz-backdrop {
+    transition: opacity .3s ease-out;
+}
+.pz-hidden {
+    visibility: hidden !important;
+}

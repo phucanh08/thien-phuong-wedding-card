@@ -42,10 +42,24 @@ và báo "bad CPU type". Dùng `/usr/bin/python3`, `/usr/bin/ruby`, `sips`, `git
    | `guests` | `code`: 8 ký tự `[a-z2-9]` ngẫu nhiên, dùng trong link `?code=` | `name` string (tên hiện trên thiệp), `salutation` string? (vd "Anh", "Cô chú"), `side` `"groom"\|"bride"`, `group` string, `phone` string?, `invitedEvents` string[] (key event trong `wedding-data.js`), `expectedCount` int ≥ 1, `note` string?, `createdAt`/`updatedAt` timestamp, `createdBy` email |
    | `rsvp` | `code` của khách; khách không có code → auto id | `code` string\|null, `name` string (bắt buộc khi `code` null), `attending` `"yes"\|"no"\|"maybe"`, `count` int 0–20, `events` string[], `note` string? ≤ 500, `updatedAt` timestamp |
    | `wishes` | auto id | `name` string ≤ 60, `message` string ≤ 500, `code` string\|null, `createdAt` timestamp |
-   | `accessRequests` | `uid` Firebase Auth | `email`, `displayName`, `status` `"pending"\|"approved"\|"rejected"`, `requestedAt`, `decidedAt`?, `decidedBy`? |
+   | `accessRequests` | `uid` Firebase Auth | `email`, `displayName`, `provider` `"google"\|"password"`, `username` string? (chỉ tài khoản mật khẩu), `status` `"pending"\|"approved"\|"rejected"`, `mustChangePassword` bool, `requestedAt`, `decidedAt`?, `decidedBy`? |
+
+   Đăng nhập trang quản lý (Auth providers đã bật: Google, Email/Password):
+   - **Google**: tài khoản lạ → tạo `accessRequests/{uid}` `pending`, chờ admin duyệt.
+   - **Tên đăng nhập + mật khẩu**: người dùng gõ `username` (`[a-z0-9._-]{3,30}`); app đổi thành
+     email ngầm `<username>@thien-phuong-wedding.local`. Admin tạo tài khoản cho người khác ngay
+     trong trang quản lý (tạo user Auth bằng một Firebase app phụ để không đăng xuất admin) và
+     ghi `accessRequests/{uid}` với `provider: "password"`, `status: "approved"`,
+     `mustChangePassword: true`.
+   - Tài khoản mặc định `admin` (email ngầm `admin@thien-phuong-wedding.local`) do Lead tạo trực
+     tiếp trên Firebase; **mật khẩu không bao giờ nằm trong repo/code/log**.
+   - `mustChangePassword == true` (hoặc super admin mật khẩu chưa có doc) → trang quản lý chặn mọi
+     màn hình cho tới khi đổi mật khẩu; đổi xong người dùng chỉ được tự sửa field
+     `mustChangePassword` của chính mình từ `true` → `false`.
 
    Quyền:
-   - **Super admin**: `request.auth.token.email == "phucanhdn01@gmail.com"` và `email_verified`.
+   - **Super admin**: (`request.auth.token.email == "phucanhdn01@gmail.com"` và `email_verified`)
+     hoặc `request.auth.token.email == "admin@thien-phuong-wedding.local"`.
    - **Admin**: super admin, hoặc `accessRequests/{uid}.status == "approved"`. Admin đọc/ghi mọi
      collection (kể cả xoá lời chúc, duyệt/từ chối yêu cầu).
    - **Người đăng nhập chưa được duyệt**: chỉ tạo/đọc `accessRequests/{uid}` của chính mình với

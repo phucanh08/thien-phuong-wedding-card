@@ -1,0 +1,119 @@
+rules_version = '2';
+
+// Hợp đồng C5 trong CLAUDE.md. Mọi thứ C5 không cho phép là cấm.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Vai ----
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Khách xem thiệp: không đăng nhập.
+    function isGuest() {
+      return request.auth == null;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && (
+        (request.auth.token.email == "phucanhdn01@gmail.com"
+          && request.auth.token.email_verified == true)
+        || request.auth.token.email == "admin@thien-phuong-wedding.local"
+      );
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || (
+        signedIn()
+        && exists(/databases/$(database)/documents/accessRequests/$(request.auth.uid))
+        && get(/databases/$(database)/documents/accessRequests/$(request.auth.uid)).data.status == "approved"
+      );
+    }
+
+    // ---- Validate field ----
+
+    function optString(data, key) {
+      return !(key in data) || data[key] is string;
+    }
+
+    function guestExists(code) {
+      return exists(/databases/$(database)/documents/guests/$(code));
+    }
+
+    function validRsvp(data) {
+      return data.keys().hasAll(["code", "attending", "count", "events", "updatedAt"])
+        && data.keys().hasOnly(["code", "name", "attending", "count", "events", "note", "updatedAt"])
+        && (data.code == null || data.code is string)
+        && optString(data, "name")
+        && data.attending in ["yes", "no", "maybe"]
+        && data.count is int && data.count >= 0 && data.count <= 20
+        && data.events is list
+        && (!("note" in data) || (data.note is string && data.note.size() <= 500))
+        && data.updatedAt is timestamp;
+    }
+
+    function validWish(data) {
+      return data.keys().hasOnly(["name", "message", "code", "createdAt"])
+        && data.keys().hasAll(["name", "message", "code", "createdAt"])
+        && data.name is string && data.name.size() <= 60
+        && data.message is string && data.message.size() <= 500
+        && (data.code == null || data.code is string)
+        && data.createdAt is timestamp;
+    }
+
+    function validOwnAccessRequest(data) {
+      return data.keys().hasAll(["email", "displayName", "provider", "status", "mustChangePassword", "requestedAt"])
+        && data.keys().hasOnly(["email", "displayName", "provider", "username", "status", "mustChangePassword", "requestedAt"])
+        && data.email is string && data.email == request.auth.token.email
+        && data.displayName is string
+        && data.provider in ["google", "password"]
+        && (!("username" in data) || (data.provider == "password"
+              && data.username is string && data.username.matches("[a-z0-9._-]{3,30}")))
+        && data.status == "pending"
+        && data.mustChangePassword is bool
+        && data.requestedAt is timestamp;
+    }
+
+    // ---- Collections ----
+
+    match /guests/{code} {
+      allow get: if isGuest() || isAdmin();
+      allow list, write: if isAdmin();
+    }
+
+    match /rsvp/{rsvpId} {
+      allow read, delete: if isAdmin();
+
+      // rsvp/{code}: khách có code hợp lệ tạo/sửa.
+      // rsvp/{autoId}: khách không code chỉ tạo, phải có name; không chiếm id của guest có thật.
+      allow create: if isAdmin() || (isGuest() && validRsvp(request.resource.data) && (
+        (request.resource.data.code == rsvpId && guestExists(rsvpId))
+        || (request.resource.data.code == null
+            && request.resource.data.name is string && request.resource.data.name.size() > 0
+            && !guestExists(rsvpId))
+      ));
+      allow update: if isAdmin() || (isGuest() && validRsvp(request.resource.data)
+        && request.resource.data.code == rsvpId && guestExists(rsvpId));
+    }
+
+    match /wishes/{wishId} {
+      allow read: if isGuest() || isAdmin();
+      allow create: if isAdmin() || (isGuest() && validWish(request.resource.data));
+      allow update, delete: if isAdmin();
+    }
+
+    match /accessRequests/{uid} {
+      allow get: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow list: if isAdmin();
+      allow create: if isAdmin() || (signedIn() && request.auth.uid == uid
+        && validOwnAccessRequest(request.resource.data));
+      // Người dùng chỉ tự đổi mustChangePassword true -> false của chính mình.
+      allow update: if isAdmin() || (signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["mustChangePassword"])
+        && resource.data.mustChangePassword == true
+        && request.resource.data.mustChangePassword == false);
+      allow delete: if isAdmin();
+    }
+  }
+}

@@ -1105,10 +1105,22 @@
             // Album: lưới chỉ hiện ảnh `featured` (không có thì 6 ảnh đầu); data-index giữ chỉ số trong
             // toàn bộ D.gallery nên bấm ô hoặc "Tất cả hình ảnh" đều mở đúng ảnh trong LightGallery
             const featured = D.gallery.map((item, i) => ({ item, i })).filter(g => g.item.featured);
-            document.getElementById('photoGalleryContainer').innerHTML = (featured.length ? featured : D.gallery.slice(0, 6).map((item, i) => ({ item, i }))).map(({ item, i }, n) => `
+            const galleryGrid = document.getElementById('photoGalleryContainer');
+            galleryGrid.innerHTML = (featured.length ? featured : D.gallery.slice(0, 6).map((item, i) => ({ item, i }))).map(({ item, i }, n) => `
                 <div class="col-6 gallery-item section-sub-title mb-2 btn-see-more-gallery" data-aos="${n % 2 ? 'fade-left' : 'fade-right'}" data-index="${i}">
                     <img loading="lazy" src="${esc(item.small)}" alt="pic${i + 1}">
                 </div>`).join('');
+            // Masonry (libs.js) chỉ xếp lại khi imagesLoaded báo ảnh tải xong, mà imagesLoaded nghe trên
+            // một new Image() proxy. Trên WebKit/iOS WebView (Zalo...) proxy tải xong trước ảnh lazy thật,
+            // nên lúc xếp ô chỉ cao bằng dòng alt và các ô đè lên nhau. Xếp lại khi chính ảnh trong lưới tải xong.
+            let galleryRelayout = 0;
+            galleryGrid.addEventListener('load', () => {
+                cancelAnimationFrame(galleryRelayout);
+                galleryRelayout = requestAnimationFrame(() => {
+                    const msnry = window.jQuery && jQuery(galleryGrid).data('masonry');
+                    if (msnry) msnry.layout();
+                });
+            }, true);
 
             // Lịch tháng cưới: ngày cưới tô đậm, ngày sự kiện khác cùng tháng khoanh viền
             const otherDays = D.events.map(e => parseISO(e.startISO))

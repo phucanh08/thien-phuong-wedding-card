@@ -15,13 +15,14 @@ import {
 } from "../firebase-shared.js";
 import { createGuestsSection } from "./guests.js";
 import { createResponsesSection } from "./responses.js";
+import { createContentSection } from "./content-editor.js";
 
 const USERNAME_DOMAIN = "thien-phuong-wedding.local";
 const USERNAME_PATTERN = /^[a-z0-9._-]{3,30}$/;
 const SUPER_ADMIN_GOOGLE_EMAIL = "phucanhdn01@gmail.com";
 const SUPER_ADMIN_PASSWORD_EMAIL = `admin@${USERNAME_DOMAIN}`;
 const MIN_PASSWORD_LENGTH = 8;
-const SECTIONS = ["khach-moi", "xac-nhan", "thong-ke", "quan-tri"];
+const SECTIONS = ["khach-moi", "xac-nhan", "thong-ke", "noi-dung", "quan-tri"];
 
 const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
@@ -49,6 +50,9 @@ const $ = (id) => document.getElementById(id);
 
 const guests = createGuestsSection({ db, getUser: () => state.user });
 const responses = createResponsesSection({ db });
+const content = createContentSection({
+  db, getUser: () => state.user, getIdToken: () => auth.currentUser.getIdToken(),
+});
 
 const state = {
   user: null,
@@ -224,6 +228,8 @@ function showSection() {
   for (const panel of document.querySelectorAll("[data-panel]")) {
     panel.hidden = panel.dataset.panel !== section;
   }
+  // Mục nội dung nặng (xem trước nạp cả thiệp): chỉ tải khi mở lần đầu.
+  if (section === "noi-dung") content.activate();
 }
 
 window.addEventListener("hashchange", () => {
@@ -500,6 +506,7 @@ onAuthStateChanged(auth, (user) => {
   unsubscribeRequests();
   guests.stop();
   responses.stop();
+  content.stop();
   if (!user) {
     showView("view-login");
     return;

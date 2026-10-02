@@ -125,26 +125,18 @@
     }
 
     // ===== Meta =====
+    // Thẻ chia sẻ link (description, og:*, twitter:*) cố định trong <head> của index.html vì máy đọc link của
+    // Zalo/Facebook/... không chạy JS; ở đây chỉ chỉnh tiêu đề tab và biểu tượng tab. Giá trị rỗng hoặc ảnh
+    // giữ chỗ .svg của dữ liệu dự phòng không được đè lên biểu tượng tĩnh.
     function applyMeta(D) {
-        const groom = D.couple.groom, bride = D.couple.bride;
-        const siteName = 'Lễ cưới: ' + groom.shortName + ' & ' + bride.shortName;
-        const set = (selector, value) => {
-            const node = document.querySelector(selector);
-            if (node) node.setAttribute(node.tagName === 'LINK' ? 'href' : 'content', value);
-        };
-        const preview = new URL(D.meta.previewImage, document.baseURI).href;
-        document.title = D.meta.title;
-        set('meta[name="description"]', D.meta.description);
-        set('meta[name="keywords"]', 'Wedding,' + groom.fullName + ',' + bride.fullName);
-        set('meta[name="application-name"]', D.meta.title);
-        set('link[rel="icon"]', D.meta.favicon);
-        set('meta[property="og:site_name"]', siteName);
-        set('meta[property="og:title"]', siteName);
-        set('meta[property="og:description"]', D.meta.description);
-        set('meta[property="og:image"]', preview);
-        set('meta[name="twitter:title"]', siteName);
-        set('meta[name="twitter:description"]', D.meta.description);
-        set('meta[name="twitter:image"]', preview);
+        const meta = D.meta || {};
+        if (meta.title) document.title = meta.title;
+        const icon = document.querySelector('link[rel="icon"]');
+        if (icon && meta.favicon && !/\.svg(?:[?#]|$)/i.test(meta.favicon)) {
+            icon.setAttribute('href', meta.favicon);
+            icon.removeAttribute('type');
+            icon.removeAttribute('sizes');
+        }
     }
 
     // ===== Vẽ thiệp =====

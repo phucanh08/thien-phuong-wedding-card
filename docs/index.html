@@ -24,22 +24,32 @@
         });
     </script>
     <script src="no-page-zoom.js"></script>
-    <!-- Title/description/og:* được điền từ nội dung thiệp (applyMeta trong v2/card.js) -->
-    <title>Wedding</title>
-    <meta name="description" content="">
-    <meta name="keywords" content="">
-    <meta name="application-name" content="">
-    <!-- data:, chặn trình duyệt tự xin /favicon.ico trước khi applyMeta đặt icon thật -->
-    <link rel="icon" href="data:,">
+    <!-- Thẻ chia sẻ link CỐ ĐỊNH (Human 2026-10-02, ngoại lệ của luật "không hard-code nội dung trong HTML"):
+         máy đọc link của Zalo, Telegram, X, Messenger, Facebook không chạy JavaScript nên chỉ thấy những gì
+         nằm sẵn ở đây. Đổi chữ/ảnh thì sửa tại chỗ này (ảnh: assets/images/share/share.jpg). applyMeta
+         (v2/card.js) chỉ chỉnh tiêu đề tab và biểu tượng tab, không đụng các thẻ dưới. og:image phải là URL
+         tuyệt đối. Ảnh vuông nên dùng twitter:card "summary" (summary_large_image của X cắt về 2:1). -->
+    <title>Thiệp cưới Thiện &amp; Phương · 25.10.2026</title>
+    <meta name="description" content="Trân trọng kính mời bạn đến dự lễ cưới của Nguyễn Đức Thiện &amp; Triệu Thị Phương. Lễ cưới nhà gái 06:30 · Lễ thành hôn nhà trai 10:00, Chủ nhật 25/10/2026.">
+    <!-- Biểu tượng tab: cắt sát hai khuôn mặt từ ảnh cưới. Không để href="data:," (applyMeta chỉ thay khi dữ liệu có ảnh thật) -->
+    <link rel="icon" type="image/png" sizes="48x48" href="assets/images/share/icon-48.png">
+    <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="assets/images/share/apple-touch-icon.png">
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="">
-    <meta property="og:title" content="">
-    <meta property="og:description" content="">
-    <meta property="og:image" content="">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="">
-    <meta name="twitter:description" content="">
-    <meta name="twitter:image" content="">
+    <meta property="og:site_name" content="Thiện &amp; Phương">
+    <meta property="og:locale" content="vi_VN">
+    <meta property="og:url" content="https://thien-phuong-weddingcard.anhlp.com/">
+    <meta property="og:title" content="Thiệp cưới Thiện &amp; Phương · 25.10.2026">
+    <meta property="og:description" content="Trân trọng kính mời bạn đến dự lễ cưới của Nguyễn Đức Thiện &amp; Triệu Thị Phương. Lễ cưới nhà gái 06:30 · Lễ thành hôn nhà trai 10:00, Chủ nhật 25/10/2026.">
+    <meta property="og:image" content="https://thien-phuong-weddingcard.anhlp.com/assets/images/share/share.jpg">
+    <meta property="og:image:type" content="image/jpeg">
+    <meta property="og:image:width" content="960">
+    <meta property="og:image:height" content="960">
+    <meta property="og:image:alt" content="Ảnh cưới của Thiện và Phương, cả hai mặc áo dài đỏ, cùng mỉm cười">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Thiệp cưới Thiện &amp; Phương · 25.10.2026">
+    <meta name="twitter:description" content="Trân trọng kính mời bạn đến dự lễ cưới của Nguyễn Đức Thiện &amp; Triệu Thị Phương. Lễ cưới nhà gái 06:30 · Lễ thành hôn nhà trai 10:00, Chủ nhật 25/10/2026.">
+    <meta name="twitter:image" content="https://thien-phuong-weddingcard.anhlp.com/assets/images/share/share.jpg">
+    <meta name="twitter:image:alt" content="Ảnh cưới của Thiện và Phương, cả hai mặc áo dài đỏ, cùng mỉm cười">
 
     <!-- Nội dung dự phòng; content-loader.js ưu tiên bản đã xuất bản (siteContent/published) -->
     <script src="wedding-data.js"></script>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eeeeee"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#g)"/>
+  <path d="M200.0 180.2c-16.5 -29.7 -52.800000000000004 -16.5 -39.6 13.200000000000001c6.6000000000000005 16.5 26.400000000000002 29.7 39.6 42.9c13.200000000000001 -13.200000000000001 33 -26.400000000000002 39.6 -42.9c13.200000000000001 -29.7 -23.099999999999998 -42.9 -39.6 -13.200000000000001z" fill="#c9b3a0" opacity="0.8"/>
+  <text x="50%" y="252.8" text-anchor="middle" font-family="Arial, sans-serif" font-size="33" fill="#7a6a5c">TODO: mã QR</text>
+</svg>

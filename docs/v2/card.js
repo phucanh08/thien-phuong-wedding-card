@@ -1,5 +1,5 @@
 // Thiệp v2 (mẫu "Nhà Có Hỷ"): vẽ nội dung + hiệu ứng, chào tên khách ?code=, xác nhận tham dự và sổ
-// lời chúc (Firestore qua firebase-config.js dùng chung với v1). Thêm lịch: V2b3.
+// lời chúc (Firestore qua firebase-config.js dùng chung với v1), nhạc nền, thêm lễ vào lịch (common/calendar.js).
 // Dữ liệu chỉ đưa vào DOM bằng textContent / thuộc tính, không innerHTML.
 // Script thường, không phải module: phần cần module (bản xuất bản qua content-loader.js, Firestore) nằm ở
 // v2/v2.js và nối vào qua window.v2Card.connect(). Module đó tải lỗi hay trình duyệt không chạy module thì
@@ -118,7 +118,7 @@
         renderCalendar(date, D.events);
         startCountdown(date);
 
-        renderEvents(D.events);
+        renderEvents(D.events, `Đám cưới ${groom.shortName} và ${bride.shortName}`);
         renderCover(D);
         renderTimeline(D.events);
         renderStory(D.story);
@@ -206,7 +206,61 @@
         return p.time ? `Vào ${p.time}, ${WEEKDAYS[p.weekday]}` : `${WEEKDAYS[p.weekday]} · Giờ: đang cập nhật`;
     }
 
-    function renderEvents(events) {
+    // ===== Thêm vào lịch (common/calendar.js, cùng cấu hình với v1) =====
+    // Chỉ gửi giờ khi có đủ giờ bắt đầu và kết thúc: thiếu giờ thì thư viện tạo sự kiện cả ngày.
+    function eventCalendarConfig(event, coupleLabel) {
+        const start = parseISO(event.startISO);
+        if (!start) return null;
+        const end = parseISO(event.endISO) || start;
+        const isoDate = p => `${p.y}-${pad(p.m)}-${pad(p.d)}`;
+        const config = {
+            name: `${event.title} (${coupleLabel})`,
+            description: 'Cảm ơn bạn đã dành thời gian tham dự đám cưới của chúng tôi!',
+            startDate: isoDate(start),
+            endDate: isoDate(end),
+            location: [event.venue, event.address].filter(Boolean).join(', '),
+            options: ['Apple', 'Google', 'iCal', 'Microsoft365', 'MicrosoftTeams', 'Outlook.com', 'Yahoo'],
+            timeZone: 'Asia/Ho_Chi_Minh',
+            iCalFileName: 'Reminder-Event',
+            listStyle: 'modal',
+            trigger: 'click'
+        };
+        if (start.time && end.time) {
+            config.startTime = start.time;
+            config.endTime = end.time;
+        }
+        return config;
+    }
+
+    let calendarReady;
+
+    function loadCalendar() {
+        if (!calendarReady) {
+            if (!document.querySelector('link[href="common/calendar.css"]')) {
+                const css = el('link');
+                css.rel = 'stylesheet';
+                css.href = 'common/calendar.css';
+                document.head.append(css);
+            }
+            calendarReady = loadScript('common/calendar.js').then(() => {
+                const loaded = typeof window.atcb_action === 'function';
+                if (!loaded) calendarReady = null; // lỗi mạng: lần chạm sau thử tải lại
+                return loaded;
+            });
+        }
+        return calendarReady;
+    }
+
+    async function addToCalendar(config, trigger) {
+        if (!(await loadCalendar())) return;
+        try {
+            window.atcb_action(config, trigger);
+        } catch (error) {
+            console.warn('Không mở được menu thêm vào lịch:', error);
+        }
+    }
+
+    function renderEvents(events, coupleLabel) {
         const list = document.getElementById('v2-events');
         list.replaceChildren(...events.map(event => {
             const p = parseISO(event.startISO);
@@ -230,7 +284,13 @@
             map.target = '_blank';
             map.rel = 'noopener noreferrer';
             actions.append(map);
-            // V2b: nút "Thêm vào lịch" (common/calendar.js) đặt cạnh nút bản đồ
+            const calendarConfig = eventCalendarConfig(event, coupleLabel);
+            if (calendarConfig) {
+                const add = el('button', 'v2-event__calendar', 'Thêm vào lịch');
+                add.type = 'button';
+                add.addEventListener('click', () => addToCalendar(calendarConfig, add));
+                actions.append(add);
+            }
             venue.append(actions);
             card.append(venue);
             return card;
@@ -579,11 +639,20 @@
         if (playing) playing.catch(() => {});
     }
 
-    music.querySelector('button').addEventListener('click', () => {
+    const musicButton = music.querySelector('button');
+
+    // Trạng thái nút theo sự kiện của <audio> (không theo lần chạm): play() bị trình duyệt từ chối thì nút vẫn "tắt"
+    function showMusicState() {
+        const playing = !audio.paused;
+        music.classList.toggle('is-playing', playing);
+        musicButton.setAttribute('aria-pressed', String(playing));
+    }
+
+    musicButton.addEventListener('click', () => {
         if (audio.paused) playMusic(); else audio.pause();
     });
-    audio.addEventListener('play', () => music.classList.add('is-playing'));
-    audio.addEventListener('pause', () => music.classList.remove('is-playing'));
+    audio.addEventListener('play', showMusicState);
+    audio.addEventListener('pause', showMusicState);
 
     // ===== Tự cuộn chậm sau khi mở phong bì; dừng ngay khi khách tự thao tác =====
     let autoScrollFrame = 0;
@@ -749,8 +818,9 @@
         if (fullName) document.querySelectorAll('[data-guest-name]').forEach(node => { node.textContent = fullName; });
         prefillName(rsvpForm.elements.namedItem('name'), guest);
         prefillName(wishForm.elements.namedItem('name'), guest);
+        // wedding:guest có thể tới muộn: không đè số người khách đã tự chỉnh
         const expected = guest && Number(guest.expectedCount);
-        if (Number.isInteger(expected) && expected >= 1) countInput.value = String(Math.min(expected, COUNT_MAX));
+        if (!countEdited && Number.isInteger(expected) && expected >= 1) countInput.value = String(Math.min(expected, COUNT_MAX));
         applyInvites();
         updateRsvpSubmit();
         updateWishSubmit();
@@ -765,6 +835,7 @@
     const rsvpSubmit = rsvpForm.querySelector('[type="submit"]');
     const rsvpStatus = rsvpForm.querySelector('[data-rsvp-status]');
     let rsvpSending = false;
+    let countEdited = false;
 
     function renderRsvpContent(D) {
         const deadline = rsvpForm.querySelector('[data-rsvp-deadline]');
@@ -825,19 +896,25 @@
         countInput.value = String(Math.min(COUNT_MAX, Math.max(1, next)));
         countInput.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    rsvpForm.addEventListener('input', () => {
+    rsvpForm.addEventListener('input', event => {
+        if (event.target === countInput) countEdited = true;
         if (!rsvpSending) setStatus(rsvpStatus, '', '');
         updateRsvpSubmit();
     });
     rsvpForm.addEventListener('submit', async event => {
         event.preventDefault();
         if (rsvpSubmit.disabled) return;
-        const firestore = await firestoreReady;
-        if (!firestore) return setStatus(rsvpStatus, 'error', OFFLINE_TEXT);
+        // Khoá nút ngay (trước khi chờ module Firestore): chạm đúp lúc module chưa sẵn sàng không gửi hai lần
         const input = rsvpInput();
         rsvpSending = true;
         updateRsvpSubmit();
         setStatus(rsvpStatus, 'pending', 'Đang gửi…');
+        const firestore = await firestoreReady;
+        if (!firestore) {
+            rsvpSending = false;
+            setStatus(rsvpStatus, 'error', OFFLINE_TEXT);
+            return updateRsvpSubmit();
+        }
         const result = await firestore.sendRsvp(input);
         rsvpSending = false;
         setStatus(rsvpStatus, result.ok ? 'success' : 'error', result.message);
@@ -900,13 +977,19 @@
     wishForm.addEventListener('submit', async event => {
         event.preventDefault();
         if (wishSubmit.disabled) return;
-        const firestore = await firestoreReady;
-        if (!firestore) return setStatus(wishStatus, 'error', OFFLINE_TEXT);
+        // Khoá nút ngay (trước khi chờ module Firestore): chạm đúp lúc module chưa sẵn sàng không gửi hai lần
         const messageInput = wishForm.elements.namedItem('message');
+        const wish = { name: wishForm.elements.namedItem('name').value, message: messageInput.value };
         wishSending = true;
         updateWishSubmit();
         setStatus(wishStatus, 'pending', 'Đang gửi…');
-        const result = await firestore.sendWish({ name: wishForm.elements.namedItem('name').value, message: messageInput.value });
+        const firestore = await firestoreReady;
+        if (!firestore) {
+            wishSending = false;
+            setStatus(wishStatus, 'error', OFFLINE_TEXT);
+            return updateWishSubmit();
+        }
+        const result = await firestore.sendWish(wish);
         wishSending = false;
         if (result.ok) {
             messageInput.value = '';
@@ -952,7 +1035,7 @@
         observeReveals();
         GESTURE_SCRIPTS.forEach(loadScript);
         // Nạp sẵn LightGallery khi rảnh để lần chạm ảnh đầu tiên mở ngay
-        (window.requestIdleCallback || setTimeout)(() => loadLightGallery());
+        (window.requestIdleCallback || setTimeout)(() => { loadLightGallery(); loadCalendar(); });
         resolveContent();
     }
 

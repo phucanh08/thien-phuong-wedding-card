@@ -507,13 +507,14 @@ html.v2-locked .v2-card { visibility: hidden; }
 .v2-event__address { color: var(--v2-ink); font-size: clamp(11px, 3cqi, 14px); line-height: 1.6; text-transform: uppercase; overflow-wrap: anywhere; }
 .v2-event__note { margin-top: 10px; color: #8e473e; font-size: clamp(12px, 3.2cqi, 15px); font-weight: 500; line-height: 1.5; }
 .v2-event__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 14px; }
-.v2-event__map {
+.v2-event__map, .v2-event__calendar {
     display: inline-flex; align-items: center; justify-content: center; min-height: 38px;
     padding: 7px 16px; border: 1px solid var(--v2-red); border-radius: 2px;
     color: var(--v2-red); font-size: 12px; font-weight: 500; line-height: 1.5; text-decoration: none;
     transition: background-color .2s, color .2s;
 }
-.v2-event__map:hover { background: var(--v2-red); color: #fff; }
+.v2-event__calendar { background: none; font-family: inherit; cursor: pointer; }
+.v2-event__map:hover, .v2-event__calendar:hover { background: var(--v2-red); color: #fff; }
 
 /* ===== 5. Ảnh ghép WITH YOU ===== */
 .v2-cover { padding: clamp(32px, 7vw, 44px) clamp(22px, 5vw, 30px) 10px; background: #fff; }

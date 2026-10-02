@@ -129,5 +129,33 @@ service cloud.firestore {
         && request.resource.data.mustChangePassword == false);
       allow delete: if isAdmin();
     }
+
+    // ---- Nội dung thiệp (C6) ----
+    // Shape của data không validate (admin tin cậy); chỉ kiểm key cấp trên và người ghi.
+
+    function validContent(data) {
+      return data.keys().hasOnly(["data", "updatedAt", "updatedBy"])
+        && data.keys().hasAll(["data", "updatedAt", "updatedBy"])
+        && data.updatedBy == request.auth.token.email;
+    }
+
+    function validHistory(data) {
+      return data.keys().hasOnly(["data", "publishedAt", "publishedBy"])
+        && data.keys().hasAll(["data", "publishedAt", "publishedBy"])
+        && data.publishedBy == request.auth.token.email;
+    }
+
+    match /siteContent/{docId} {
+      allow get: if docId == "published" || (docId == "draft" && isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if docId in ["published", "draft"] && isAdmin()
+        && validContent(request.resource.data);
+      allow delete: if docId in ["published", "draft"] && isAdmin();
+    }
+
+    match /siteContentHistory/{historyId} {
+      allow read, delete: if isAdmin();
+      allow create, update: if isAdmin() && validHistory(request.resource.data);
+    }
   }
 }

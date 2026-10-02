@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "sh -c '/usr/bin/python3 -m http.server ${PORT:-8080} --directory docs & web=$!; trap \"kill $web\" EXIT INT TERM; firebase emulators:start --only auth,firestore --project demo-thien-phuong'",
-    "test": "firebase emulators:exec --only firestore --project demo-thien-phuong-rules \"node --test tests/rules/*.test.mjs\"",
-    "test:rules": "node --test tests/rules/*.test.mjs"
+    "test": "firebase emulators:exec --only firestore --project demo-thien-phuong-rules \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",
+    "test:rules": "node --test --test-concurrency=1 tests/rules/*.test.mjs"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",

@@ -83,6 +83,8 @@ export interface FakeNetwork {
   // uid -> status của accessRequests/{uid}; vắng = doc không tồn tại.
   accessStatus: Map<string, string>;
   firestoreFailure?: number;
+  // Ghi đè `name` của doc Firestore trả về (mặc định: đúng doc của uid).
+  docName?: (uid: string) => string;
   requestedUrls: string[];
 }
 
@@ -109,7 +111,7 @@ export function installFakeNetwork(signer: Signer): FakeNetwork {
       const status = net.accessStatus.get(uid);
       if (status === undefined) return Response.json({ error: { status: "NOT_FOUND" } }, { status: 404 });
       return Response.json({
-        name: `projects/${PROJECT}/databases/(default)/documents/accessRequests/${uid}`,
+        name: net.docName?.(uid) ?? `projects/${PROJECT}/databases/(default)/documents/accessRequests/${uid}`,
         fields: { status: { stringValue: status }, email: { stringValue: "editor@example.com" } },
       });
     }

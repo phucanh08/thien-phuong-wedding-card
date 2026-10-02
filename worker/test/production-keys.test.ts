@@ -58,7 +58,9 @@ describe("key cache follows Cache-Control", () => {
 
     const rotated = await makeSigner("test-kid-1");
     net.jwks = () => Response.json({ keys: [rotated.publicJwk] }, { headers: { "Cache-Control": "max-age=3600" } });
-    expect((await call(put(WEBP_KEY, webpBytes(), { token }))).status).toBe(201);
+    // Key khác: PUT lên key đã có là 409 (N4), cache khoá vẫn phải còn hiệu lực.
+    const otherKey = "content/1b4e28ba-2fa1-41d2-883f-0016d3cca427-large.webp";
+    expect((await call(put(otherKey, webpBytes(), { token }))).status).toBe(201);
   });
 
   it("refetches keys when max-age is 0", async () => {

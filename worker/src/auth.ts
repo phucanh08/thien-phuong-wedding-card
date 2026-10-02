@@ -55,19 +55,24 @@ async function googleKeys(): Promise<Map<string, CryptoKey>> {
   }
   if (!response.ok) throw new AuthError(503, "public keys unavailable");
 
-  const body = (await response.json()) as { keys?: JsonWebKey[] };
+  // Nguồn khoá trả rác (không phải JSON, JWK sai) là lỗi phía Google, không phải của token.
   const keys = new Map<string, CryptoKey>();
-  for (const jwk of body.keys ?? []) {
-    const kid = (jwk as JsonWebKey & { kid?: string }).kid;
-    if (jwk.kty !== "RSA" || typeof kid !== "string") continue;
-    const key = await crypto.subtle.importKey(
-      "jwk",
-      { kty: "RSA", n: jwk.n, e: jwk.e },
-      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-      false,
-      ["verify"],
-    );
-    keys.set(kid, key);
+  try {
+    const body = (await response.json()) as { keys?: JsonWebKey[] };
+    for (const jwk of body.keys ?? []) {
+      const kid = (jwk as JsonWebKey & { kid?: string }).kid;
+      if (jwk.kty !== "RSA" || typeof kid !== "string") continue;
+      const key = await crypto.subtle.importKey(
+        "jwk",
+        { kty: "RSA", n: jwk.n, e: jwk.e },
+        { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+        false,
+        ["verify"],
+      );
+      keys.set(kid, key);
+    }
+  } catch {
+    throw new AuthError(503, "public keys unavailable");
   }
   keyCache = {
     keys,
@@ -78,9 +83,15 @@ async function googleKeys(): Promise<Map<string, CryptoKey>> {
 
 function base64UrlDecode(segment: string): Uint8Array {
   if (!/^[A-Za-z0-9_-]*$/.test(segment)) throw new AuthError(401, "malformed token");
+  // Độ dài ≡ 1 (mod 4) không phải base64url hợp lệ.
+  if (segment.length % 4 === 1) throw new AuthError(401, "malformed token");
   const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
-  const binary = atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4));
-  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  try {
+    const binary = atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4));
+    return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  } catch {
+    throw new AuthError(401, "malformed token");
+  }
 }
 
 function decodeJson(segment: string): Record<string, unknown> {
@@ -136,7 +147,8 @@ export async function verifyIdToken(token: string): Promise<IdTokenClaims> {
   if (typeof claims.auth_time !== "number" || claims.auth_time > now + CLOCK_SKEW_SECONDS) {
     throw new AuthError(401, "invalid auth_time");
   }
-  if (typeof claims.sub !== "string" || claims.sub.length === 0 || claims.sub.length > 128) {
+  // Chỉ ký tự uid Firebase: chặn "..", "/" làm đổi đường dẫn Firestore.
+  if (typeof claims.sub !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(claims.sub)) {
     throw new AuthError(401, "invalid subject");
   }
   return {
@@ -165,9 +177,14 @@ async function isApproved(uid: string, token: string): Promise<boolean> {
   }
   if (response.status === 404 || response.status === 403) return false;
   if (!response.ok) throw new AuthError(503, "access check unavailable");
-  const doc = (await response.json()) as {
-    fields?: { status?: { stringValue?: string } };
-  };
+  let doc: { name?: unknown; fields?: { status?: { stringValue?: string } } };
+  try {
+    doc = await response.json();
+  } catch {
+    throw new AuthError(503, "access check unavailable");
+  }
+  // Doc trả về phải đúng là accessRequests/<uid> của người gọi.
+  if (typeof doc.name !== "string" || !doc.name.endsWith(`/documents/accessRequests/${uid}`)) return false;
   return doc.fields?.status?.stringValue === "approved";
 }
 

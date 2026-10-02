@@ -59,9 +59,13 @@ async function serve(request: Request, env: Env, key: string): Promise<Response>
   let object: R2Object | R2ObjectBody | null;
   try {
     object = await env.MEDIA.get(key, { onlyIf: request.headers, range: request.headers });
-  } catch {
-    // Range không thoả được (vd. vượt kích thước object).
-    return json(416, { error: "range not satisfiable" }, headers);
+  } catch (error) {
+    // R2 báo Range không thoả được bằng mã 10039; mọi lỗi khác là lỗi phía R2.
+    if (request.headers.has("Range") && /\(10039\)/.test(String((error as Error)?.message))) {
+      return json(416, { error: "range not satisfiable" }, headers);
+    }
+    console.error(JSON.stringify({ event: "r2_get_failed", message: String((error as Error)?.message) }));
+    return json(503, { error: "storage unavailable" }, headers);
   }
   if (!object) return json(404, { error: "not found" }, headers);
 
@@ -147,10 +151,13 @@ async function upload(request: Request, env: Env, key: string, kind: MediaKind, 
     return json(415, { error: `body is not ${kind.contentType}` });
   }
 
+  // Key luôn là uuid mới và GET đặt cache immutable: không bao giờ ghi đè key đã có.
   const object = await env.MEDIA.put(key, bytes, {
     httpMetadata: { contentType: kind.contentType, cacheControl: IMMUTABLE },
     customMetadata: { uploadedBy: uid },
+    onlyIf: { etagDoesNotMatch: "*" },
   });
+  if (!object) return json(409, { error: "key already exists" });
   return json(201, { key, etag: object.httpEtag, size: object.size });
 }
 
@@ -185,9 +192,13 @@ async function route(request: Request, env: Env): Promise<Response> {
       try {
         response = await write(request, env, key);
       } catch (error) {
-        if (!(error instanceof AuthError)) throw error;
-        console.warn(JSON.stringify({ event: "auth_denied", status: error.status, reason: error.message }));
-        response = json(error.status, { error: error.message }, error.status === 401 ? { "WWW-Authenticate": "Bearer" } : undefined);
+        if (error instanceof AuthError) {
+          console.warn(JSON.stringify({ event: "auth_denied", status: error.status, reason: error.message }));
+          response = json(error.status, { error: error.message }, error.status === 401 ? { "WWW-Authenticate": "Bearer" } : undefined);
+        } else {
+          console.error(JSON.stringify({ event: "write_failed", message: String((error as Error)?.message) }));
+          response = json(503, { error: "storage unavailable" });
+        }
       }
       const headers = new Headers(response.headers);
       writeCors(origin, headers);

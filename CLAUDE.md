@@ -92,3 +92,21 @@ và báo "bad CPU type". Dùng `/usr/bin/python3`, `/usr/bin/ruby`, `sips`, `git
      collection trên, không có catch-all.
    - Link `?code=` không tồn tại hoặc không có: thiệp chào chung, **không** tự tạo `guests`.
    - Số mâm = làm tròn lên (tổng `count` của RSVP `attending == "yes"` có event đó) / 10.
+6. **Hợp đồng nội dung thiệp (CMS)** — Firestore + Storage, cùng project C5 (gói Blaze).
+   - `siteContent/published` và `siteContent/draft`: `{ data, updatedAt, updatedBy }`; `data` có
+     **đúng shape `window.WEDDING_DATA`** (C2, kể cả field tuỳ chọn đã thêm như `featured`,
+     `note`, `dressCode`). `siteContentHistory/{autoId}`: bản `published` cũ mỗi lần xuất bản
+     (`{ data, publishedAt, publishedBy }`), dùng để khôi phục.
+   - `events[].key` **không được sửa** từ trang quản lý (khách tham chiếu qua `invitedEvents`);
+     thêm/xoá sự kiện cần ruling Lead.
+   - Ảnh/nhạc tải lên: Storage `content/<uuid>-large.webp`, `content/<uuid>-small.webp`,
+     nhạc `content/<uuid>.<mp3|m4a>`; `data` lưu URL tải công khai (download URL). Đường dẫn
+     tương đối cũ (`assets/...`) vẫn hợp lệ.
+   - Ảnh: cắt theo tỉ lệ ô (admin kéo chỉnh được), bản lớn cạnh dài ≤ 1600px, bản nhỏ ≤ 600px,
+     WebP; mỗi file ảnh ≤ 2 MB, nhạc ≤ 10 MB.
+   - Quyền: ai cũng `get` `siteContent/published` và đọc `content/**` trên Storage; chỉ admin
+     (định nghĩa C5) đọc/ghi `siteContent/draft`, ghi `published`, đọc/ghi `siteContentHistory`,
+     ghi `content/**` (đúng loại `image/webp` / `audio/mpeg|audio/mp4`, đúng giới hạn kích thước).
+   - Thiệp: dùng `published.data` nếu đọc được trong thời gian chờ ngắn; không được → dùng
+     `docs/wedding-data.js` (dự phòng, vẫn giữ trong repo). Xuất bản đầu tiên = nội dung
+     `wedding-data.js` hiện tại.

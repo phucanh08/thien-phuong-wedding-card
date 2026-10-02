@@ -15,12 +15,13 @@ import {
 import { createGuestsSection } from "./guests.js";
 import { createResponsesSection } from "./responses.js";
 import { createContentSection } from "./content-editor.js";
+import { claimFirstVisit, browserStorage } from "./guide.js";
 
 const USERNAME_DOMAIN = "thien-phuong-wedding.local";
 const USERNAME_PATTERN = /^[a-z0-9._-]{3,30}$/;
 const SUPER_ADMIN_PASSWORD_EMAIL = `admin@${USERNAME_DOMAIN}`;
 const MIN_PASSWORD_LENGTH = 8;
-const SECTIONS = ["khach-moi", "xac-nhan", "thong-ke", "noi-dung", "quan-tri"];
+const SECTIONS = ["khach-moi", "xac-nhan", "thong-ke", "noi-dung", "quan-tri", "huong-dan"];
 
 const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
@@ -161,6 +162,9 @@ function showChangePassword(user) {
 function enterApp(user) {
   $("app-account").textContent = accountLabel(user);
   showView("view-app");
+  // Lần đầu tài khoản này vào được trang quản lý trên máy này: mở thẳng mục Hướng dẫn.
+  // Chỉ tới đây khi đã qua màn đổi mật khẩu và có quyền, nên không chặn nhầm hai màn đó.
+  if (claimFirstVisit(browserStorage(), user.uid)) history.replaceState(null, "", "#huong-dan");
   showSection();
   subscribeRequests();
   guests.start();

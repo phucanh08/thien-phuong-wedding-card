@@ -20,7 +20,7 @@
     const WEEKDAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
     const DEFAULT_INTRO = 'Hôm nay là ngày chúng mình cùng nắm tay nhau bước vào hành trình của yêu thương và sẻ chia.';
     const DEFAULT_THANKS = 'Cảm ơn quý khách đã hiện diện và gửi đến chúng con những lời chúc tốt đẹp.';
-    const AUTO_SCROLL_SPEED = 120; // px/giây, đo từ mẫu
+    const AUTO_SCROLL_SPEED = 80; // px/giây (Human duyệt 2026-10-02; mẫu là 120)
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     history.scrollRestoration = 'manual';
@@ -674,19 +674,56 @@
     audio.addEventListener('pause', showMusicState);
 
     // ===== Tự cuộn chậm sau khi mở phong bì; dừng ngay khi khách tự thao tác =====
+    // Nghe thao tác từ lúc thiệp hiện ra và cuộn được (armAutoScroll), không đợi tới lúc bắt đầu cuộn:
+    // khách chạm/vuốt/cuộn/lăn chuột/bấm phím là dừng, kể cả trong khoảng chờ trước khi bắt đầu.
+    // AUTO_SCROLL_IDLE ms không thao tác thì cuộn tiếp từ vị trí đang đứng; mỗi lần thao tác đếm lại.
+    // Không chạy lại khi đang mở sheet, xem ảnh lớn, gõ vào ô nhập hay đã ở cuối trang: hết các trạng thái
+    // đó thì đếm lại từ lúc hết (Human duyệt 2026-10-02).
+    const AUTO_SCROLL_IDLE = 30000;
+    const ACTIVITY_EVENTS = ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown', 'scroll'];
+    let autoScrollArmed = false;
     let autoScrollFrame = 0;
+    let lastActivity = null; // lần thao tác cuối (hoặc lúc hết trạng thái chặn); null = chưa thao tác
+
+    function armAutoScroll() {
+        if (reducedMotion || autoScrollArmed) return;
+        autoScrollArmed = true;
+        ACTIVITY_EVENTS.forEach(type => window.addEventListener(type, onActivity, { capture: true, passive: true }));
+        setInterval(resumeAutoScroll, 500);
+    }
+
+    function onActivity(event) {
+        if (event.type === 'scroll' && autoScrollFrame) return; // cuộn do chính tự cuộn
+        stopAutoScroll();
+    }
 
     function stopAutoScroll() {
-        if (!autoScrollFrame) return;
+        lastActivity = performance.now();
         cancelAnimationFrame(autoScrollFrame);
         autoScrollFrame = 0;
-        STOP_EVENTS.forEach(type => window.removeEventListener(type, stopAutoScroll, true));
     }
-    const STOP_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
 
+    function autoScrollBlocked() {
+        const root = document.documentElement;
+        const active = document.activeElement;
+        return root.classList.contains('v2-sheet-open') || root.classList.contains('lg-on')
+            || !!(active && (['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable))
+            || window.scrollY >= root.scrollHeight - window.innerHeight - 1;
+    }
+
+    // Lần đầu (openEnvelope): chỉ khi khách chưa thao tác từ lúc thiệp hiện ra
     function startAutoScroll() {
-        if (reducedMotion) return;
-        STOP_EVENTS.forEach(type => window.addEventListener(type, stopAutoScroll, { capture: true, passive: true }));
+        if (lastActivity === null) runAutoScroll();
+    }
+
+    function resumeAutoScroll() {
+        if (autoScrollFrame || lastActivity === null) return;
+        if (autoScrollBlocked()) lastActivity = performance.now();
+        else if (performance.now() - lastActivity >= AUTO_SCROLL_IDLE) runAutoScroll();
+    }
+
+    function runAutoScroll() {
+        if (!autoScrollArmed || autoScrollFrame || autoScrollBlocked()) return;
         let last = performance.now();
         let y = window.scrollY;
         const step = now => {
@@ -721,6 +758,7 @@
         window.scrollTo(0, 0);
         card.classList.add('is-entering');
         document.documentElement.classList.remove('v2-locked');
+        armAutoScroll();
         flyPhotoToBanner();
         envelope.classList.add('is-handoff');
         requestAnimationFrame(() => requestAnimationFrame(() => {

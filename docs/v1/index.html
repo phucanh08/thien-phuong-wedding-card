@@ -1497,8 +1497,10 @@
         })();
     </script>
     <script type="module">
-        // import động thay vì import tĩnh: content-loader.js/firebase-shared.js tải lỗi thì vào catch ngay
-        import('./content-loader.js')
+        // import động thay vì import tĩnh: content-loader.js/firebase-shared.js tải lỗi thì vào catch ngay.
+        // URL tuyệt đối theo <base>: Safari resolve import() của script inline theo URL trang (/v1/, hay
+        // /admin/ trong khung xem trước) chứ không theo <base>, './content-loader.js' sẽ 404.
+        import(new URL('content-loader.js', document.baseURI).href)
             .then(({ loadWeddingContent }) => loadWeddingContent())
             .then(({ data, source }) => bootWeddingCard.boot(data, source))
             .catch(error => bootWeddingCard.bootFallback(error));

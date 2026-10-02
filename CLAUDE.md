@@ -134,6 +134,12 @@ bản x86_64 và chạy bình thường. Phục vụ web tĩnh vẫn dùng `/usr
      Trình sửa nội dung phải kiểm đúng danh sách này trước khi cho xuất bản.
    - URL trong `data` (ảnh, `mapUrl`, `facebook`, nhạc) chỉ `https:`/`http:` hoặc đường dẫn tương
      đối; `dressCode` chỉ mã màu `#rgb`/`#rrggbb`. Thiệp bỏ qua giá trị sai thay vì hiển thị.
-   - Thiệp: dùng `published.data` nếu đọc được trong thời gian chờ ngắn; không được → dùng
-     `docs/wedding-data.js` (dự phòng, vẫn giữ trong repo). Xuất bản đầu tiên = nội dung
-     `wedding-data.js` hiện tại.
+   - Thiệp: dùng `published.data` nếu đọc được trong thời gian chờ ngắn; không được → bản
+     `published.data` gần nhất đã lưu trên máy khách (localStorage, theo `updateTime`, bản cũ
+     không đè bản mới, qua cùng kiểm hợp lệ/normalize; Human duyệt 2026-10-02); chưa có bản lưu →
+     `docs/wedding-data.js` (dự phòng, vẫn giữ trong repo). Mỗi lần vẽ đúng một nguồn
+     (`source`: `published` | `cached` | `fallback`). Đường vào qua `/` đọc Firestore một lần và
+     chuyển kết quả sang trang phiên bản. Xuất bản đầu tiên = nội dung `wedding-data.js` hiện tại.
+   - Phiên bản thiệp (Human chọn 2026-10-02): field tuỳ chọn `site.version` ∈ `"v1"` | `"v2"` |
+     `"both"`, thiếu/sai → `"v1"`. `/` và `/?code=` mở bản theo `published`; `"both"` → trang chọn
+     giữ `?code=`/`#hash`; không đọc được → `v1`. `/v1/`, `/v2/` mở trực tiếp luôn được.

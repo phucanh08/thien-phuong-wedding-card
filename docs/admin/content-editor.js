@@ -20,7 +20,7 @@ const SIDES = [["groom", "Chú rể"], ["bride", "Cô dâu"]];
 const SECTIONS = {
   meta: {
     title: "Thông tin chia sẻ link",
-    where: "Không nằm trong thân thiệp: tiêu đề tab trình duyệt và khung xem trước (ảnh, tiêu đề, mô tả) khi gửi link qua Zalo, Messenger, Facebook.",
+    where: "Không nằm trong thân thiệp: tiêu đề và biểu tượng trên tab trình duyệt. Khung xem trước khi gửi link qua Zalo, Facebook, Messenger, Telegram, X dùng tiêu đề, mô tả và ảnh cố định trong code, không đổi ở đây.",
   },
   couple: {
     title: "Cô dâu & chú rể",
@@ -539,9 +539,9 @@ export function createContentSection({ db, getUser, getIdToken }) {
 
   function renderMeta(parent) {
     const body = sectionCard(parent, "meta");
-    textField(body, { path: "meta.title", label: "Tiêu đề", hint: "Tên tab trình duyệt và tiêu đề khung xem trước link." });
-    textField(body, { path: "meta.description", label: "Mô tả", multiline: true, rows: 2, hint: "Dòng mô tả dưới tiêu đề khi gửi link." });
-    imageField(body, { path: "meta.previewImage", label: "Ảnh khi gửi link", kind: "album", variant: "large", hint: "Ảnh lớn trong khung xem trước link (nên dùng ảnh ngang). Giữ nguyên tỉ lệ ảnh gốc." });
+    textField(body, { path: "meta.title", label: "Tiêu đề", hint: "Chỉ đổi tên tab trình duyệt. Tiêu đề khi gửi link qua Zalo, Facebook, Messenger, Telegram, X là chữ cố định trong code." });
+    textField(body, { path: "meta.description", label: "Mô tả", multiline: true, rows: 2, hint: "Không hiện ở đâu cả. Mô tả khi gửi link qua Zalo, Facebook, Messenger, Telegram, X là chữ cố định trong code." });
+    imageField(body, { path: "meta.previewImage", label: "Ảnh khi gửi link", kind: "album", variant: "large", hint: "Không đổi khung xem trước khi gửi link: Zalo, Facebook, Messenger, Telegram, X dùng ảnh cố định trong code. Ô này chỉ là ảnh dự phòng của thiệp." });
     imageField(body, { path: "meta.favicon", label: "Biểu tượng tab", kind: "qr", variant: "small", hint: "Hình vuông nhỏ cạnh tiêu đề trên tab trình duyệt." });
   }
 

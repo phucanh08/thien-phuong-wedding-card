@@ -66,3 +66,25 @@ test("featured (lưới v1) không ảnh hưởng lưới v2 khi đã có featur
   assert.deepEqual(indexes(after), indexes(before));
   assert.deepEqual(coverSources(after), coverSources(before));
 });
+
+// G3: C6 cho phép album rỗng. Không có ảnh nào để lấy thì ô ảnh bìa không có nguồn ('' = để trống),
+// không throw; ô coverImages có giá trị vẫn dùng. coverImages không phải mảng thì coi như không có.
+test("album rỗng: lưới rỗng, không throw", () => {
+  assert.deepEqual(gridItems([]), []);
+});
+
+test("album rỗng: ảnh bìa chỉ lấy từ coverImages, ô thiếu để trống", () => {
+  assert.deepEqual(coverSources([]), ["", "", ""]);
+  assert.deepEqual(coverSources([], undefined), ["", "", ""]);
+  assert.deepEqual(coverSources([], []), ["", "", ""]);
+  assert.deepEqual(coverSources([], ["c0"]), ["c0", "", ""]);
+  assert.deepEqual(coverSources([], ["c0", "c1"]), ["c0", "c1", ""]);
+  assert.deepEqual(coverSources([], ["c0", "c1", "c2"]), ["c0", "c1", "c2"]);
+});
+
+test("album rỗng, coverImages sai kiểu: coi như không có", () => {
+  assert.deepEqual(coverSources([], "c0"), ["", "", ""]);
+  assert.deepEqual(coverSources([], { 0: "c0" }), ["", "", ""]);
+  assert.deepEqual(coverSources([], 3), ["", "", ""]);
+  assert.deepEqual(coverSources([], null), ["", "", ""]);
+});

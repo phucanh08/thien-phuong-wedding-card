@@ -15,13 +15,15 @@
     }
 
     // Ba ảnh bìa [lớn, nhỏ trái, nhỏ phải]: wedding.coverImages[i] nếu có, không thì lấy từ lưới v2
-    // (ảnh lớn dùng bản large, hai ảnh nhỏ dùng bản small; lưới ít ảnh thì lặp ảnh đầu).
+    // (ảnh lớn dùng bản large, hai ảnh nhỏ dùng bản small; lưới ít ảnh thì lặp ảnh đầu). Album rỗng
+    // (C6 cho phép) mà ô không có coverImages -> '' (ô để trống).
     function coverSources(gallery, coverImages) {
         const custom = Array.isArray(coverImages) ? coverImages.filter(u => typeof u === 'string' && u) : [];
         const grid = gridItems(gallery);
         return [0, 1, 2].map(i => {
             if (custom[i]) return custom[i];
             const entry = grid[i] || grid[0];
+            if (!entry) return '';
             return i === 0 ? entry.item.large : entry.item.small;
         });
     }

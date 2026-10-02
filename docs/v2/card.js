@@ -318,11 +318,16 @@
         }));
     }
 
+    // Ô không có nguồn (album rỗng mà thiếu coverImages): giữ khung nền trống, không hiện ảnh vỡ hay chữ
+    // alt; cả ba ô đều trống thì ẩn mục "With you".
     function renderCover(D) {
-        const sources = window.v2GalleryGrid.coverSources(D.gallery, D.wedding.coverImages);
+        const sources = window.v2GalleryGrid.coverSources(D.gallery, D.wedding.coverImages).map(safeUrl);
         document.querySelectorAll('[data-cover]').forEach(img => {
-            setImg(img, sources[+img.dataset.cover], 'Ảnh cưới');
+            const src = sources[+img.dataset.cover];
+            setImg(img, src, src ? 'Ảnh cưới' : '');
+            if (!src) img.style.visibility = 'hidden';
         });
+        if (!sources.some(Boolean)) document.querySelector('.v2-cover').hidden = true;
     }
 
     function renderTimeline(events) {
@@ -411,6 +416,11 @@
         const stage = document.getElementById('v2-album');
         const dots = document.getElementById('v2-album-dots');
         const items = window.v2GalleryGrid.gridItems(gallery);
+        // Album rỗng (C6 cho phép): ẩn mục Album như mục Chuyện tình rỗng
+        if (!items.length) {
+            stage.closest('.v2-album').hidden = true;
+            return;
+        }
         const slides = items.map(({ item, index }, i) => {
             const slide = el('button', 'v2-album__slide');
             slide.type = 'button';

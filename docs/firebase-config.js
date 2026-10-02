@@ -75,7 +75,7 @@ function greetGuest(guest) {
         `Trân trọng kính mời ${fullName} đến tham dự buổi tiệc chung vui cùng gia đình chúng tôi!`;
 
     const rsvpName = document.getElementById('guest-name');
-    if (!rsvpName.value.trim()) rsvpName.value = guest.name || '';
+    if (!rsvpName.value.trim()) rsvpName.value = (guest.name || '').slice(0, WISH_NAME_MAX);
     const wishName = document.getElementById('name-comment');
     if (!wishName.value.trim()) wishName.value = (guest.name || '').slice(0, WISH_NAME_MAX);
 
@@ -114,6 +114,11 @@ async function submitRsvp(event) {
     const attending = ATTENDING_BY_OPTION[document.getElementById('attendance_status_id').value];
     if (!name || !attending) {
         showRsvpMessage(form, 'error', 'Vui lòng nhập tên và cho chúng tôi biết bạn có tham dự không.');
+        return;
+    }
+
+    if (name.length > WISH_NAME_MAX) {
+        showRsvpMessage(form, 'error', `Tên tối đa ${WISH_NAME_MAX} ký tự.`);
         return;
     }
 

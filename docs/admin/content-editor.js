@@ -866,13 +866,18 @@ export function createContentSection({ db, getUser, getIdToken }) {
   function showInPreview(key) {
     if (!preview) return;
     $("content-preview-pane").classList.add("is-open");
-    lastFollowed = key;
+    if (preview.canScroll) lastFollowed = key;
     preview.scrollTo(key);
   }
 
+  // Khung xem trước chưa cuộn được (chưa vẽ xong lần đầu, hoặc lớp xem trước trên điện thoại đang đóng)
+  // thì chỉ nhớ mục đang sửa, chưa ghi nhận đã cuộn: lần focus sau trong cùng mục, hay lúc mở lớp xem
+  // trước, vẫn cuộn tới mục đó (mục mở sẵn khi vào trang báo toggle lúc khung còn trống).
+  let editingSection = null;
   let lastFollowed = null;
   function followSection(key) {
-    if (!preview || key === lastFollowed) return;
+    editingSection = key;
+    if (!preview || !preview.canScroll || key === lastFollowed) return;
     lastFollowed = key;
     preview.scrollTo(key);
   }
@@ -1095,7 +1100,11 @@ export function createContentSection({ db, getUser, getIdToken }) {
     $("btn-content-save").addEventListener("click", saveDraft);
     $("btn-content-publish").addEventListener("click", publish);
     $("btn-content-history").addEventListener("click", openHistory);
-    $("btn-content-preview").addEventListener("click", () => $("content-preview-pane").classList.add("is-open"));
+    $("btn-content-preview").addEventListener("click", () => {
+      $("content-preview-pane").classList.add("is-open");
+      lastFollowed = null;
+      if (editingSection) followSection(editingSection);
+    });
     $("btn-content-preview-close").addEventListener("click", () => $("content-preview-pane").classList.remove("is-open"));
     $("content-preview-version").addEventListener("change", (event) => preview?.setVersion(event.target.value));
     $("btn-content-history-back").addEventListener("click", () => {

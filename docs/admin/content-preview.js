@@ -192,6 +192,11 @@ export function createPreview({ container, onState }) {
     get version() {
       return version;
     },
+    // Cuộn được chưa: đã có khung vẽ xong và khung đang hiện (trên điện thoại lớp xem trước đóng thì
+    // khung không có layout, cuộn không có tác dụng).
+    get canScroll() {
+      return current !== null && current.getClientRects().length > 0;
+    },
     async scrollTo(section) {
       if (!current) return;
       const frame = current;

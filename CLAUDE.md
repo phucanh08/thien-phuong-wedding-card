@@ -11,6 +11,16 @@ Web tĩnh, không build. Gốc site là `docs/` (nguồn GitHub Pages).
 /usr/bin/python3 -m http.server 8080 --directory docs
 ```
 
+Chạy thiệp (`/`) và trang quản lý (`/admin/`) với Firebase emulator (Auth 9199, Firestore 8282, rules
+thật từ `firestore.rules`), một lệnh sau `npm ci`:
+
+```bash
+npm run dev            # web ở :8080 (đổi bằng PORT=8162), emulator project demo-thien-phuong
+```
+
+Ở localhost/127.0.0.1 thiệp và admin tự nối emulator, không chạm Firebase thật. Firebase web config và
+port emulator chỉ khai ở `docs/firebase-shared.js` (port phải khớp `firebase.json`).
+
 Máy dev là Apple Silicon không có Rosetta: `node`, `npx`, `gh`, python của pyenv đều là bản x86_64
 và báo "bad CPU type". Dùng `/usr/bin/python3`, `/usr/bin/ruby`, `sips`, `git`, `curl`.
 

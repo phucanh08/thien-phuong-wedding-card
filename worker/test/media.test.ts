@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MB,
+  CUSTOM_ORIGIN,
   ORIGIN,
   UUID,
   WEBP_KEY,
@@ -340,6 +341,42 @@ describe("CORS", () => {
       expect(res.headers.get("Access-Control-Allow-Origin")).toBe(origin);
       expect(res.headers.get("Access-Control-Allow-Methods")).toContain("PUT");
       expect(res.headers.get("Access-Control-Allow-Headers")).toContain("Authorization");
+    }
+  });
+
+  it("allows the custom domain origin for preflight, PUT and DELETE", async () => {
+    const res = await call(preflight(CUSTOM_ORIGIN));
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(CUSTOM_ORIGIN);
+    expect(res.headers.get("Access-Control-Allow-Methods")).toContain("DELETE");
+
+    const token = await superPassword();
+    const created = await call(put(WEBP_KEY, webpBytes(), { token, origin: CUSTOM_ORIGIN }));
+    expect(created.status).toBe(201);
+    expect(created.headers.get("Access-Control-Allow-Origin")).toBe(CUSTOM_ORIGIN);
+    expect(await stored(WEBP_KEY)).toBe(true);
+
+    const gone = await call(del(WEBP_KEY, { token, origin: CUSTOM_ORIGIN }));
+    expect(gone.headers.get("Access-Control-Allow-Origin")).toBe(CUSTOM_ORIGIN);
+    expect(await stored(WEBP_KEY)).toBe(false);
+  });
+
+  it("refuses lookalikes of the custom domain", async () => {
+    for (const origin of [
+      "http://thien-phuong-weddingcard.anhlp.com",
+      "https://anhlp.com",
+      "https://www.anhlp.com",
+      "https://other.anhlp.com",
+      "https://thien-phuong-weddingcard.anhlp.com.evil.com",
+      "https://evil.thien-phuong-weddingcard.anhlp.com",
+      "https://thien-phuong-weddingcard.anhlp.com:8443",
+      "https://thien-phuong-weddingcard.anhlp.com/",
+      "null",
+      "",
+    ]) {
+      const res = await call(preflight(origin));
+      expect(res.status, origin).toBe(403);
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
     }
   });
 

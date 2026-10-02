@@ -4,8 +4,7 @@ import { USE_EMULATOR } from "../firebase-shared.js";
 import { MAX_IMAGE_BYTES } from "./image-pipeline.js";
 
 // Worker phục vụ R2. Chạy local thì dùng `wrangler dev` (port mặc định 8787).
-// TODO: điền URL Worker thật (vd https://<tên>.<tài-khoản>.workers.dev) khi Worker được deploy.
-export const WORKER_URL = USE_EMULATOR ? "http://127.0.0.1:8787" : "";
+export const WORKER_URL = USE_EMULATOR ? "http://127.0.0.1:8787" : "https://thien-phuong-media.phucanhdn01.workers.dev";
 
 const HTTP_ERRORS = {
   401: "Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập. Hãy đăng nhập lại rồi thử lại.",

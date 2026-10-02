@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   // Worker phục vụ ảnh/nhạc thiệp trên R2 theo hợp đồng C6 (CLAUDE.md).
-  // Chưa deploy: bucket chưa tạo, R2 trên tài khoản Human chưa bật.
+  // Đã deploy 2026-10-02: https://thien-phuong-media.phucanhdn01.workers.dev
   "name": "thien-phuong-media",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-15",

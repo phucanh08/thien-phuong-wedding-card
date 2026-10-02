@@ -581,6 +581,8 @@ html.v2-locked .v2-card { visibility: hidden; }
     width: clamp(28px, 8cqi, 38px); aspect-ratio: 1; border: 1px solid var(--v2-ink-dark);
     border-radius: 50%; background: var(--swatch, #fff);
 }
+/* Một hàng chung cho mọi lễ (như mẫu): chấm dàn đều trên bề rộng, không ghi tên lễ */
+.v2-dresscode__palette--spread { display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr); justify-items: center; gap: 14px 0; width: 100%; }
 
 /* ===== 6b. Chuyện tình ===== */
 .v2-story { container-type: inline-size; padding: 20px 24px 40px; background: #fff; }

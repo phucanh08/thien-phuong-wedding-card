@@ -1,6 +1,6 @@
 // Nạp nội dung thiệp: bản đã xuất bản siteContent/published (CLAUDE.md mục 6); đọc không kịp thì bản
 // xuất bản gần nhất đã lưu trên máy khách, chưa có bản lưu thì docs/wedding-data.js (dự phòng). Dùng
-// chung cho mọi phiên bản thiệp (/v1/, /v2/...).
+// cho thiệp (/v2/) và khung xem trước của trang quản lý.
 //
 //   const { data, source } = await loadWeddingContent();  // source: 'published' | 'cached' | 'fallback'
 //
@@ -9,22 +9,21 @@
 // Đọc qua Firestore REST (một fetch) thay vì SDK: không phải tải SDK trước khi vẽ thiệp, và không
 // đụng instance Firestore của firebase-config.js (nối emulator chỉ được làm một lần).
 //
-// Khách vào bằng đường gốc (docs/index.html -> loadCardVersion -> /v1/ hoặc /v2/): đường gốc đọc và
-// chờ một lần, ghi kết quả vào sessionStorage; trang phiên bản mở ngay sau đó dùng lại kết quả này
-// (một lần) thay vì đọc và chờ lại. Mở thẳng /v1/, /v2/ hay tải lại trang thì đọc như thường.
+// Khách vào bằng đường gốc (docs/index.html -> preloadPublished -> /v2/): đường gốc đọc và chờ một lần,
+// ghi kết quả vào sessionStorage; trang thiệp mở ngay sau đó dùng lại kết quả này (một lần) thay vì
+// đọc và chờ lại. Mở thẳng /v2/ hay tải lại trang thì đọc như thường.
 import { FIREBASE_CONFIG, FIRESTORE_EMULATOR_PORT, USE_EMULATOR } from './firebase-shared.js';
 
 const TIMEOUT_MS = 2500;
 // Đường gốc là lần chờ duy nhất của lượt /?code=: tính từ lúc bắt đầu điều hướng (performance.now()),
-// không từ lúc module chạy, và chừa ~2s cho trang phiên bản tải và vẽ, để khi Firestore treo khách vẫn
+// không từ lúc module chạy, và chừa ~2s cho trang thiệp tải và vẽ, để khi Firestore treo khách vẫn
 // thấy thiệp trong 4s. Trang gốc tự tải quá chậm thì vẫn chờ ít nhất ROOT_MIN_WAIT_MS.
 const ROOT_DEADLINE_MS = 2000;
 const ROOT_MIN_WAIT_MS = 1000;
 // Quá thời gian chờ thì thiệp vẽ bằng nguồn khác, nhưng request vẫn chạy tới REFRESH_FACTOR lần thời
 // gian chờ để lưu bản mới cho lần sau: máy mạng chậm không bị kẹt mãi ở bản lưu cũ.
 const REFRESH_FACTOR = 8;
-// Kết quả đường gốc chỉ có giá trị cho trang phiên bản mở ngay sau nó (gồm cả lúc khách đứng ở
-// trang chọn khi site.version = 'both'); cũ hơn thì trang phiên bản đọc lại.
+// Kết quả đường gốc chỉ có giá trị cho trang thiệp mở ngay sau nó; cũ hơn thì trang thiệp đọc lại.
 const HANDOFF_MAX_AGE_MS = 30000;
 const FALLBACK_SCRIPT = new URL('./wedding-data.js', import.meta.url).href;
 
@@ -62,27 +61,11 @@ export async function loadWeddingContent({ timeoutMs = TIMEOUT_MS } = {}) {
     return { data: normalize(await loadFallback()), source: 'fallback' };
 }
 
-// Phiên bản thiệp mà đường dẫn gốc (docs/index.html) mở: site.version của bản xuất bản. Đọc không
-// kịp thì theo bản đã lưu (trang phiên bản cũng sẽ vẽ bản đó). Chưa xuất bản, bản xuất bản hỏng (thiệp
-// cũng bỏ nó), hoặc không kịp mà chưa có bản lưu -> 'v1'.
-// Không nạp wedding-data.js: khách không phải chờ thêm sau thời gian chờ.
-export async function loadCardVersion({ timeoutMs = Math.max(ROOT_MIN_WAIT_MS, ROOT_DEADLINE_MS - performance.now()) } = {}) {
-    const result = await readPublished(timeoutMs);
-    saveHandoff(result);
-    if (result.status === 'published') return cardVersion(result.data);
-    const cached = result.status === 'unreachable' ? readCache() : null;
-    if (cached) return cardVersion(cached.data);
-    console.warn('Không đọc được phiên bản thiệp, mở v1:', result.reason);
-    return DEFAULT_VERSION;
-}
-
-// site.version: 'v1' | 'v2' | 'both' (C6); thiếu hoặc sai -> 'v1'. Cùng luật cardVersion của
-// docs/admin/content-model.js.
-const CARD_VERSIONS = ['v1', 'v2', 'both'];
-const DEFAULT_VERSION = 'v1';
-function cardVersion(data) {
-    const version = isObject(data) && isObject(data.site) ? data.site.version : undefined;
-    return CARD_VERSIONS.includes(version) ? version : DEFAULT_VERSION;
+// Đường dẫn gốc (docs/index.html) đọc bản xuất bản một lần rồi chuyển sang /v2/: kết quả (kể cả quá
+// giờ) được trang thiệp dùng lại, không đọc/chờ lần hai. site.version (C6) còn trong data nhưng bị bỏ
+// qua: chỉ còn thiệp v2. Không nạp wedding-data.js: khách không phải chờ thêm sau thời gian chờ.
+export async function preloadPublished({ timeoutMs = Math.max(ROOT_MIN_WAIT_MS, ROOT_DEADLINE_MS - performance.now()) } = {}) {
+    saveHandoff(await readPublished(timeoutMs));
 }
 
 // Kết quả đọc bản xuất bản, chờ tối đa timeoutMs:
@@ -265,7 +248,6 @@ function normalize(source) {
         return target;
     };
 
-    data.site = Object.assign(obj(data.site), { version: cardVersion(data) });
     data.meta = fill(obj(data.meta), ['title', 'description'], ['previewImage', 'favicon']);
     data.couple = obj(data.couple);
     ['groom', 'bride'].forEach(side => {

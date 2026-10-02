@@ -1,8 +1,10 @@
-// Unit test cho import() động trong script module viết thẳng trong trang thiệp (/v1/, /v2/).
-// Các trang này có <base href="../">. Chrome resolve import() của script inline theo base của tài liệu
-// (gốc site), còn WebKit (Safari) resolve theo URL của chính tài liệu (/v1/, hay /admin/ khi trang
+// Unit test cho import() động trong script module viết thẳng trong trang (đường gốc /, thiệp /v2/).
+// Trang thiệp có <base href="../">. Chrome resolve import() của script inline theo base của tài liệu
+// (gốc site), còn WebKit (Safari) resolve theo URL của chính tài liệu (/v2/, hay /admin/ khi trang
 // được ghi vào khung xem trước của trang quản lý). Specifier tương đối như './content-loader.js' vì vậy
-// trỏ tới /v1/content-loader.js trên Safari: 404, thiệp rơi về wedding-data.js dù đã xuất bản.
+// có thể trỏ tới /v2/content-loader.js trên Safari: 404, thiệp rơi về wedding-data.js dù đã xuất bản.
+// (X2: trang /v1/ chỉ còn chuyển hướng sang /v2/, không còn script module; trang gốc thay nó làm
+// trang có import() inline để test bên dưới không rỗng.)
 // Test chạy từng script inline với import() được thay bằng hàm ghi lại specifier, rồi kiểm specifier
 // trỏ tới file có thật theo cả hai cách resolve.
 // Chạy: node --test tests/unit/
@@ -29,7 +31,7 @@ function importSpecifiers(html, documentUrl) {
   const specifiers = [];
   for (const body of inlineModules(html)) {
     const sandbox = {
-      document: { baseURI, URL: documentUrl },
+      document: { baseURI, URL: documentUrl, querySelector: () => ({}) },
       location: new URL(documentUrl),
       URL,
       bootWeddingCard: { boot() {}, bootFallback() {} },
@@ -53,7 +55,8 @@ function siteFile(url) {
 
 const PAGES = [
   // trang thiệp mở trực tiếp, và trang thiệp được ghi vào khung xem trước (iframe mang URL /admin/)
-  { page: "v1/index.html", urls: [`${SITE}v1/`, `${SITE}v1/?code=abcd2345`, `${SITE}admin/#noi-dung`] },
+  { page: "index.html", urls: [SITE, `${SITE}?code=abcd2345#loi-chuc`] },
+  { page: "v1/index.html", urls: [`${SITE}v1/`, `${SITE}v1/?code=abcd2345`] },
   { page: "v2/index.html", urls: [`${SITE}v2/`, `${SITE}admin/#noi-dung`] },
 ];
 
@@ -73,8 +76,8 @@ for (const { page, urls } of PAGES) {
   }
 }
 
-test("v1/index.html nạp content-loader.js bằng import() trong script inline (test trên không rỗng)", () => {
-  const html = readFileSync(DOCS + "v1/index.html", "utf8");
-  const { baseURI, specifiers } = importSpecifiers(html, `${SITE}v1/`);
+test("index.html nạp content-loader.js bằng import() trong script inline (test trên không rỗng)", () => {
+  const html = readFileSync(DOCS + "index.html", "utf8");
+  const { baseURI, specifiers } = importSpecifiers(html, `${SITE}?code=abcd2345`);
   assert.deepEqual(specifiers.map((s) => new URL(s, baseURI).href), [`${SITE}content-loader.js`]);
 });

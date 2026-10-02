@@ -1,10 +1,9 @@
 // Nguồn nội dung duy nhất của thiệp Thiện & Phương.
-// index.html chỉ đọc window.WEDDING_DATA; đổi nội dung ở đây, không sửa markup.
+// Thiệp (v2/) vẽ từ window.WEDDING_DATA khi không dùng được bản xuất bản (C6); đổi nội dung ở đây, không sửa markup.
 // Mọi giá trị chứa "TODO" là placeholder chờ nội dung thật.
 // Ảnh thật trong assets/images/photos/ (…-large 1600px, …-small 600px); QR và favicon vẫn là placeholder trong assets/images/placeholder/.
 window.WEDDING_DATA = {
-    // Thiệp khách vào từ đường dẫn gốc (/ và /?code=...): "v1" | "v2" | "both" (trang chọn giữa hai bản).
-    // Chỉ có tác dụng qua bản xuất bản (trang quản lý); chưa xuất bản thì đường dẫn gốc mở v1.
+    // Field cũ (C6), giữ trong data nhưng bị bỏ qua: thiệp chỉ còn bản v2, đường dẫn gốc luôn mở v2.
     site: {
         version: "v1"
     },
@@ -119,9 +118,9 @@ window.WEDDING_DATA = {
     ],
 
     // caption (tuỳ chọn): chú thích khi mở ảnh lớn; bỏ trống thì dùng câu trích dẫn mặc định
-    // featured: true -> hiện ở lưới v1 (không item nào featured thì lấy 6 item đầu); "Tất cả hình ảnh" và lightbox mở toàn bộ.
-    // featuredV2: true (tuỳ chọn) -> hiện ở băng ảnh Album của v2 và làm ảnh bìa "With you" khi thiếu
-    // wedding.coverImages; không item nào featuredV2 thì v2 dùng lưới v1.
+    // featuredV2: true (tuỳ chọn; ô "Hiện ở Album" của trang quản lý) -> hiện ở băng ảnh Album và làm ảnh
+    // bìa "With you" khi thiếu wedding.coverImages. Không item nào featuredV2 thì dùng ảnh featured: true,
+    // không có thì 6 item đầu. "Tất cả hình ảnh" và lightbox mở toàn bộ album.
     gallery: [
         { small: "assets/images/photos/photo-01-small.webp", large: "assets/images/photos/photo-01-large.webp", featured: true },
         { small: "assets/images/photos/photo-02-small.webp", large: "assets/images/photos/photo-02-large.webp" },

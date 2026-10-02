@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Wedding</title>
     <meta name="robots" content="noindex">
+    <!-- data:, chặn trình duyệt tự xin /favicon.ico (404) trong lúc chuyển sang thiệp -->
+    <link rel="icon" href="data:,">
     <!-- Dự phòng khi tắt JS (không giữ query/hash); trong noscript để không tranh với location.replace -->
-    <noscript><meta http-equiv="refresh" content="0; url=v1/"></noscript>
+    <noscript><meta http-equiv="refresh" content="0; url=v2/"></noscript>
     <link rel="modulepreload" href="content-loader.js">
     <link rel="modulepreload" href="firebase-shared.js">
     <style>
@@ -18,70 +20,31 @@
         }
         a { color: inherit; }
         .router-wait { margin: 0; font-size: 15px; color: #8a7a7e; }
-        .chooser { width: 100%; max-width: 420px; }
-        .chooser h1 { margin: 0 0 6px; font-size: 30px; font-weight: normal; letter-spacing: .02em; color: #9a4b5a; }
-        .chooser p { margin: 0 0 28px; color: #6f6064; }
-        .chooser-options { display: grid; gap: 14px; }
-        .chooser-option {
-            display: block; padding: 18px 20px; border: 1px solid #e3cfd2; border-radius: 14px; background: #fff;
-            text-decoration: none; box-shadow: 0 6px 18px rgba(154, 75, 90, .08); transition: transform .15s, box-shadow .15s;
-        }
-        .chooser-option:hover, .chooser-option:focus-visible { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(154, 75, 90, .16); }
-        .chooser-option:focus-visible { outline: 2px solid #9a4b5a; outline-offset: 3px; }
-        .chooser-option strong { display: block; font-size: 20px; font-weight: normal; color: #9a4b5a; }
-        .chooser-option span { display: block; margin-top: 2px; font-size: 14px; color: #8a7a7e; }
-        @media (min-width: 720px) {
-            .chooser { max-width: 640px; }
-            .chooser-options { grid-template-columns: 1fr 1fr; }
-            .chooser-option { padding: 28px 24px; }
-        }
     </style>
     <script nomodule>
-        // Trình duyệt không chạy được module: mở bản mặc định như trước.
-        location.replace('v1/' + location.search + location.hash);
+        // Trình duyệt không chạy được module: mở thiệp luôn.
+        location.replace('v2/' + location.search + location.hash);
     </script>
     <script type="module">
-        // Đường dẫn gốc mở phiên bản thiệp admin đã xuất bản (site.version, C6): v1, v2, hoặc
-        // "both" = trang chọn. Đọc không kịp thì theo bản xuất bản đã lưu trên máy, không có thì v1
-        // (content-loader.js). Đây là lần chờ Firestore duy nhất của lượt: content-loader.js chuyển
-        // kết quả cho trang phiên bản, trang đó không đọc/chờ lại. /v1/ và /v2/ mở trực tiếp không
-        // qua đây. Giữ nguyên ?code= và #hash.
-        const target = version => `${version}/${location.search}${location.hash}`;
+        // Đường dẫn gốc luôn mở thiệp v2 (chỉ còn một phiên bản), giữ nguyên ?code= và #hash. Trước khi
+        // chuyển, đọc bản xuất bản một lần (content-loader.js): đây là lần chờ Firestore duy nhất của lượt,
+        // content-loader.js chuyển kết quả cho trang thiệp, trang đó không đọc/chờ lại. /v2/ mở trực tiếp
+        // không qua đây.
+        const target = `v2/${location.search}${location.hash}`;
 
-        document.querySelector('#router-wait a').href = target('v1');
+        document.querySelector('#router-wait a').href = target;
         (async () => {
-            let version = 'v1';
             try {
-                const { loadCardVersion } = await import('./content-loader.js');
-                version = await loadCardVersion();
+                const { preloadPublished } = await import('./content-loader.js');
+                await preloadPublished();
             } catch (error) {
-                console.warn('Không chọn được phiên bản thiệp, mở v1:', error.message);
+                console.warn('Không đọc trước được bản xuất bản, thiệp sẽ tự đọc:', error.message);
             }
-            if (version !== 'both') {
-                location.replace(target(version));
-                return;
-            }
-            for (const link of document.querySelectorAll('[data-version]')) link.href = target(link.dataset.version);
-            document.getElementById('router-wait').hidden = true;
-            document.getElementById('chooser').hidden = false;
+            location.replace(target);
         })();
     </script>
 </head>
 <body>
-    <p class="router-wait" id="router-wait">Đang mở thiệp… <a href="v1/">Mở thiệp cưới</a></p>
-    <main class="chooser" id="chooser" hidden>
-        <h1>Thiệp mời cưới</h1>
-        <p>Mời bạn chọn kiểu thiệp để xem</p>
-        <div class="chooser-options">
-            <a class="chooser-option" data-version="v1" href="v1/">
-                <strong>Thiệp truyền thống</strong>
-                <span>Thiệp cuộn với lịch cưới, album và chuyện tình</span>
-            </a>
-            <a class="chooser-option" data-version="v2" href="v2/">
-                <strong>Thiệp Nhà Có Hỷ</strong>
-                <span>Mở phong bì, thiệp mời và lịch trình từng sự kiện</span>
-            </a>
-        </div>
-    </main>
+    <p class="router-wait" id="router-wait">Đang mở thiệp… <a href="v2/">Mở thiệp cưới</a></p>
 </body>
 </html>

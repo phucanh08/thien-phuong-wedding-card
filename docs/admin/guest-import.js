@@ -77,6 +77,38 @@ export function parseEvents(value, events) {
   return { keys: allKeys.filter((k) => keys.has(k)) };
 }
 
+// Giới hạn field guests theo C5 trong CLAUDE.md (rules không kiểm, nên kiểm ở đây — form và nhập file dùng chung).
+export const LIMITS = { name: 60, salutation: 30, group: 60, phone: 20, note: 500, countMax: 20 };
+
+const charCount = (text) => Array.from(text).length;
+
+// Tên khách: gộp khoảng trắng, bỏ ký tự vô hình (zero-width, điều khiển, ô trống Hangul…) rồi cắt hai đầu.
+export function cleanName(text) {
+  return String(text ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/[\p{Cf}\p{Cc}\u115F\u1160\u3164\uFFA0]/gu, "")
+    .trim();
+}
+
+// Kiểm các field chữ và Số người theo C5. Nhận chuỗi đã trim (countText "" = chưa nhập).
+// Trả { values: { name, salutation, group, phone, note, expectedCount }, errors: [] }.
+export function checkGuestFields({ name, salutation, group, phone, note, countText }) {
+  const errors = [];
+  const cleanedName = cleanName(name);
+  if (!cleanedName) errors.push("thiếu Tên");
+  else if (charCount(cleanedName) > LIMITS.name) errors.push(`Tên dài ${charCount(cleanedName)} ký tự, tối đa ${LIMITS.name}`);
+  for (const [field, label] of [["salutation", "Xưng hô"], ["group", "Nhóm"], ["phone", "SĐT"], ["note", "Ghi chú"]]) {
+    const length = charCount({ salutation, group, phone, note }[field]);
+    if (length > LIMITS[field]) errors.push(`${label} dài ${length} ký tự, tối đa ${LIMITS[field]}`);
+  }
+  // Chỉ chữ số thập phân: "1e3", "0x10", "2.5", "-1" bị loại; số ngoài 1–20 (kể cả quá lớn) bị loại.
+  const expectedCount = /^\d+$/.test(countText) ? Number(countText) : NaN;
+  if (!(expectedCount >= 1 && expectedCount <= LIMITS.countMax)) {
+    errors.push(`Số người "${countText}" phải là số nguyên từ 1 đến ${LIMITS.countMax}`);
+  }
+  return { values: { name: cleanedName, salutation, group, phone, note, expectedCount }, errors };
+}
+
 function cellText(value) {
   if (value === undefined || value === null) return "";
   return String(value).trim();
@@ -88,6 +120,21 @@ function phoneText(value) {
   return typeof value === "number" && /^\d{9}$/.test(text) ? `0${text}` : text;
 }
 
+// CSV chỉ nhận UTF-8 (có/không BOM) hoặc UTF-16 có BOM. Byte lạ (vd Windows-1258 của Excel "CSV (Comma delimited)"
+// trên Windows tiếng Việt) mà cứ đọc như UTF-8 thì tên vỡ dấu hoặc báo sai là thiếu cột, nên báo thẳng.
+function decodeCsv(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const utf16 = bytes[0] === 0xFF && bytes[1] === 0xFE ? "utf-16le" : bytes[0] === 0xFE && bytes[1] === 0xFF ? "utf-16be" : null;
+  try {
+    return new TextDecoder(utf16 || "utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    throw Object.assign(
+      new Error("File CSV không phải mã hoá UTF-8 (có thể là Windows-1258/ANSI nên tên bị vỡ dấu). "
+        + "Hãy lưu lại bằng \"CSV UTF-8 (Comma delimited)\" hoặc dùng file .xlsx."),
+      { csvEncoding: true });
+  }
+}
+
 // Đọc file người dùng chọn thành mảng dòng thô { rowNumber, values: { field: cell } }.
 // Ném Error với message tiếng Việt khi file không đọc được hoặc thiếu cột bắt buộc.
 export async function readGuestFile(file) {
@@ -96,9 +143,10 @@ export async function readGuestFile(file) {
   let workbook;
   try {
     workbook = isCsv
-      ? XLSX.read((await file.text()).replace(/^﻿/, ""), { type: "string", raw: true })
+      ? XLSX.read(decodeCsv(await file.arrayBuffer()), { type: "string", raw: true })
       : XLSX.read(await file.arrayBuffer(), { type: "array" });
-  } catch {
+  } catch (error) {
+    if (error.csvEncoding) throw error;
     throw new Error("Không đọc được file. Hãy dùng file .xlsx hoặc .csv theo file mẫu.");
   }
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -136,40 +184,30 @@ export async function readGuestFile(file) {
 // Kiểm một dòng thô theo C5. Trả { rowNumber, guest, errors: [] }; guest chỉ có field C5 do admin nhập
 // (code, createdAt/updatedAt/createdBy do guests.js thêm lúc ghi).
 export function validateRow({ rowNumber, values }, events) {
-  const errors = [];
-  const name = cellText(values.name);
-  if (!name) errors.push("thiếu Tên");
-
   const sideText = cellText(values.side);
   const side = parseSide(sideText);
+  const parsedEvents = parseEvents(values.events, events);
+  const { values: fields, errors } = checkGuestFields({
+    name: cellText(values.name),
+    salutation: cellText(values.salutation),
+    group: cellText(values.group),
+    phone: phoneText(values.phone),
+    note: cellText(values.note),
+    countText: cellText(values.expectedCount) || "1",
+  });
+
   if (!sideText) errors.push("thiếu Bên (trai/gái)");
   else if (!side) errors.push(`Bên "${sideText}" không hợp lệ (chỉ nhận trai/gái)`);
-
-  const parsedEvents = parseEvents(values.events, events);
   if (parsedEvents.unknown) errors.push(`không có sự kiện "${parsedEvents.unknown.join('", "')}"`);
 
-  let expectedCount = 1;
-  const countText = cellText(values.expectedCount);
-  if (countText) {
-    expectedCount = Number(countText);
-    if (!Number.isInteger(expectedCount) || expectedCount < 1) {
-      errors.push(`Số người "${countText}" phải là số nguyên từ 1 trở lên`);
-    }
-  }
-
   const guest = {
-    name,
+    name: fields.name,
     side,
-    group: cellText(values.group),
+    group: fields.group,
     invitedEvents: parsedEvents.keys || [],
-    expectedCount,
+    expectedCount: fields.expectedCount,
   };
-  const salutation = cellText(values.salutation);
-  const phone = phoneText(values.phone);
-  const note = cellText(values.note);
-  if (salutation) guest.salutation = salutation;
-  if (phone) guest.phone = phone;
-  if (note) guest.note = note;
+  for (const key of ["salutation", "phone", "note"]) if (fields[key]) guest[key] = fields[key];
   return { rowNumber, guest, errors };
 }
 
@@ -200,13 +238,13 @@ export async function downloadTemplate(format, events) {
 
   const guide = XLSX.utils.aoa_to_sheet([
     ["Cột", "Cách điền"],
-    ["Tên", "Bắt buộc. Tên hiện trên thiệp."],
+    ["Tên", "Bắt buộc, tối đa 60 ký tự. Tên hiện trên thiệp."],
     ["Xưng hô", "Không bắt buộc, vd: Anh, Chị, Cô chú. Thiệp chào \"Xưng hô Tên\"."],
     ["Bên", "Bắt buộc: trai hoặc gái."],
     ["Nhóm", "Không bắt buộc, vd: Bạn đại học, Đồng nghiệp, Họ hàng."],
     ["SĐT", "Không bắt buộc. Ai có link thiệp riêng của khách đều xem được SĐT và Ghi chú."],
     ["Sự kiện", "Để trống = mời tất cả. Nhiều sự kiện cách nhau bằng dấu phẩy; ghi mã hoặc tên lễ ở bảng dưới."],
-    ["Số người", "Số người dự kiến đi cùng thiệp này, số nguyên ≥ 1. Để trống = 1."],
+    ["Số người", "Số người dự kiến đi cùng thiệp này, số nguyên từ 1 đến 20. Để trống = 1."],
     ["Ghi chú", "Không bắt buộc."],
     [],
     ["Mã sự kiện", "Tên lễ"],

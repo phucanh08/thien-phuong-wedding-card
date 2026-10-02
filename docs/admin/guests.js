@@ -5,7 +5,7 @@ import {
   doc, setDoc, updateDoc, deleteDoc, deleteField, collection, onSnapshot,
   serverTimestamp, runTransaction,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { fold, validateRow, readGuestFile, downloadTemplate } from "./guest-import.js";
+import { fold, validateRow, checkGuestFields, readGuestFile, downloadTemplate } from "./guest-import.js";
 
 // [a-z2-9] bỏ "l" và "o" cho dễ đọc: đúng 32 ký tự nên byte % 32 không lệch.
 const CODE_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
@@ -288,29 +288,20 @@ export function createGuestsSection({ db, getUser }) {
 
   // Đọc form thành field C5 do admin nhập; trả { guest } hoặc { error }.
   function readForm() {
-    const name = $("guest-name").value.trim();
     const side = $("guest-side").value;
-    const countText = $("guest-count-input").value.trim();
-    const expectedCount = Number(countText);
     const invitedEvents = Array.from($("guest-events").querySelectorAll("input:checked"), (i) => i.value);
-    if (!name) return { error: "Nhập tên khách." };
-    if (!SIDE_LABEL[side]) return { error: "Chọn bên nhà trai hoặc nhà gái." };
-    if (!invitedEvents.length) return { error: "Chọn ít nhất một sự kiện mời dự." };
-    if (!countText || !Number.isInteger(expectedCount) || expectedCount < 1) {
-      return { error: "Số người phải là số nguyên từ 1 trở lên." };
-    }
-    return {
-      guest: {
-        name,
-        salutation: $("guest-salutation").value.trim(),
-        side,
-        group: $("guest-group").value.trim(),
-        phone: $("guest-phone").value.trim(),
-        invitedEvents,
-        expectedCount,
-        note: $("guest-note").value.trim(),
-      },
-    };
+    const { values, errors } = checkGuestFields({
+      name: $("guest-name").value,
+      salutation: $("guest-salutation").value.trim(),
+      group: $("guest-group").value.trim(),
+      phone: $("guest-phone").value.trim(),
+      note: $("guest-note").value.trim(),
+      countText: $("guest-count-input").value.trim(),
+    });
+    if (!SIDE_LABEL[side]) errors.push("Chọn bên nhà trai hoặc nhà gái.");
+    if (!invitedEvents.length) errors.push("Chọn ít nhất một sự kiện mời dự.");
+    if (errors.length) return { error: errors.join("; ") };
+    return { guest: { ...values, side, invitedEvents } };
   }
 
   // Field tuỳ chọn để trống: khi tạo thì bỏ hẳn, khi sửa thì xoá field (C5: salutation?/phone?/note?).
@@ -341,8 +332,9 @@ export function createGuestsSection({ db, getUser }) {
         });
         toast(`Đã lưu ${greeting(guest)}`);
       } else {
-        const code = await createGuests([withOptionalFields(guest, false)]);
-        toast(`Đã thêm ${greeting(guest)} · mã ${code[0]}`);
+        const entry = { guest: withOptionalFields(guest, false) };
+        await createGuests([entry]);
+        toast(`Đã thêm ${greeting(guest)} · mã ${entry.code}`);
       }
       $("guest-dialog").close();
     } catch (e) {
@@ -352,41 +344,53 @@ export function createGuestsSection({ db, getUser }) {
     }
   });
 
+  // Doc đã có ở code này có đúng là bản ghi của entry không (lần ghi trước đã tới server nhưng mất phản hồi)?
+  function isSameGuest(data, guest) {
+    return ["name", "side", "group", "expectedCount"].every((key) => data[key] === guest[key])
+      && (data.invitedEvents || []).join() === guest.invitedEvents.join();
+  }
+
   // Ghi khách mới với code ngẫu nhiên; mỗi lô một transaction đọc trước để chắc code chưa có.
-  // Trả mảng code theo đúng thứ tự đầu vào.
-  async function createGuests(guests) {
+  // entries: [{ guest }]. Entry nhận `code` ngay khi được cấp và `written = true` khi lô của nó đã ghi xong,
+  // nên gọi lại sau lỗi chỉ ghi các entry chưa `written` và giữ nguyên code đã cấp: lô đã tới server mà mất
+  // phản hồi được nhận ra (doc cùng code, cùng nội dung) thay vì ghi trùng.
+  async function createGuests(entries) {
     const createdBy = getUser()?.email || "";
     const known = new Set(state.guests.map((g) => g.code));
-    const codes = [];
-    for (let start = 0; start < guests.length; start += IMPORT_CHUNK) {
-      const chunk = guests.slice(start, start + IMPORT_CHUNK);
+    const pending = entries.filter((e) => !e.written);
+    for (const e of entries) if (e.code) known.add(e.code);
+    for (let start = 0; start < pending.length; start += IMPORT_CHUNK) {
+      const chunk = pending.slice(start, start + IMPORT_CHUNK);
       for (let attempt = 1; ; attempt++) {
-        const chunkCodes = chunk.map(() => {
-          let code;
-          do code = randomCode(); while (known.has(code));
-          known.add(code);
-          return code;
-        });
-        const taken = await runTransaction(db, async (tx) => {
-          const refs = chunkCodes.map((code) => doc(db, "guests", code));
+        for (const e of chunk) {
+          if (e.code) continue;
+          do e.code = randomCode(); while (known.has(e.code));
+          known.add(e.code);
+        }
+        const collided = await runTransaction(db, async (tx) => {
+          const refs = chunk.map((e) => doc(db, "guests", e.code));
           const snaps = await Promise.all(refs.map((ref) => tx.get(ref)));
-          if (snaps.some((s) => s.exists())) return true;
-          refs.forEach((ref, i) => tx.set(ref, {
-            ...chunk[i],
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            createdBy,
-          }));
-          return false;
+          const taken = chunk.filter((e, i) => snaps[i].exists() && !isSameGuest(snaps[i].data(), e.guest));
+          if (taken.length) return taken;
+          chunk.forEach((e, i) => {
+            if (snaps[i].exists()) return;
+            tx.set(refs[i], {
+              ...e.guest,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              createdBy,
+            });
+          });
+          return [];
         });
-        if (!taken) {
-          codes.push(...chunkCodes);
+        if (!collided.length) {
+          for (const e of chunk) e.written = true;
           break;
         }
         if (attempt >= CODE_ATTEMPTS) throw new Error("Không tạo được mã khách không trùng. Vui lòng thử lại.");
+        for (const e of collided) e.code = null;
       }
     }
-    return codes;
   }
 
   // ---------- Nhập từ file ----------
@@ -480,7 +484,7 @@ export function createGuestsSection({ db, getUser }) {
         el("td", "", SIDE_LABEL[r.guest.side] || "—"),
         el("td", "", r.guest.group || ""),
         el("td", "", r.errors.length ? "" : eventsSummary(r.guest.invitedEvents)),
-        el("td", "text-end", String(r.guest.expectedCount)),
+        el("td", "text-end", r.errors.length ? "" : String(r.guest.expectedCount)),
       );
       return tr;
     }));
@@ -496,15 +500,21 @@ export function createGuestsSection({ db, getUser }) {
     if (!valid.length) return;
     const commit = $("btn-import-commit");
     commit.disabled = true;
-    showMessage($("import-message"), `Đang ghi ${valid.length} khách…`, "secondary");
+    const remaining = () => valid.filter((r) => !r.written).length;
+    showMessage($("import-message"), `Đang ghi ${remaining()} khách…`, "secondary");
     try {
-      await createGuests(valid.map((r) => r.guest));
+      await createGuests(valid);
       const skipped = state.importRows.length - valid.length;
       resetImport();
       showMessage($("import-message"),
         `Đã nhập ${valid.length} khách.` + (skipped ? ` Bỏ qua ${skipped} dòng lỗi.` : ""), "success");
     } catch (error) {
-      showMessage($("import-message"), `Chưa nhập được: ${errorText(error)}`);
+      // Lô đã ghi vẫn nằm trong danh sách; bấm lại chỉ ghi phần còn lại, không ghi trùng.
+      const done = valid.length - remaining();
+      showMessage($("import-message"),
+        `Chưa nhập hết: đã ghi ${done}/${valid.length} khách. ${errorText(error)}`
+        + (done ? ` Bấm "Nhập" lại để ghi nốt ${remaining()} khách còn lại, các khách đã ghi sẽ không bị ghi lại.` : ""));
+      commit.textContent = done ? `Nhập nốt ${remaining()} khách` : commit.textContent;
       commit.disabled = false;
     }
   });

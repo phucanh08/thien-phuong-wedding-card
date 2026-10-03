@@ -842,23 +842,26 @@
     const dock = document.getElementById('v2-dock');
     let opened = false;
 
+    // Khung xem trước vẽ lại sau mỗi lần sửa (admin/content-preview.js) đặt window.__contentPreviewInstant
+    // trước khi chạm nút mở: khung mới còn ẩn, thiệp mở ngay tới trạng thái cuối, không chờ hiệu ứng.
     async function openEnvelope() {
         if (opened) return;
         opened = true;
+        const instant = window.__contentPreview && window.__contentPreviewInstant === true;
         playMusic(); // trong chính cử chỉ chạm (iOS chỉ cho phát ở đây)
         await contentReady;
         if (audio.paused) playMusic();
-        const wait = ms => new Promise(resolve => setTimeout(resolve, reducedMotion ? 0 : ms));
+        const wait = ms => new Promise(resolve => setTimeout(resolve, reducedMotion || instant ? 0 : ms));
 
         envelope.classList.add('is-opening');
         await wait(2400);
 
         // Trả trang về đầu, hiện nội dung sau lớp phong bì đang mờ dần, ảnh bay vào banner
         window.scrollTo(0, 0);
-        card.classList.add('is-entering');
+        if (!instant) card.classList.add('is-entering');
         document.documentElement.classList.remove('v2-locked');
         armAutoScroll();
-        flyPhotoToBanner();
+        if (!instant) flyPhotoToBanner();
         envelope.classList.add('is-handoff');
         requestAnimationFrame(() => requestAnimationFrame(() => {
             card.classList.add('is-shown');
@@ -866,8 +869,10 @@
         }));
         music.hidden = false;
         dock.hidden = false;
-        dock.classList.add('is-entering');
-        requestAnimationFrame(() => requestAnimationFrame(() => dock.classList.remove('is-entering')));
+        if (!instant) {
+            dock.classList.add('is-entering');
+            requestAnimationFrame(() => requestAnimationFrame(() => dock.classList.remove('is-entering')));
+        }
         await wait(1100);
 
         envelope.classList.add('is-done');

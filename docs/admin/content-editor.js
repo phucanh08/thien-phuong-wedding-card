@@ -113,6 +113,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
   // path -> { inputs: [], feedback, wrap } để gắn lỗi validate vào đúng ô.
   const fields = new Map();
   let preview = null;
+  let introNote = null;
   let pickerDialog = null;
   let activePicker = null;
 
@@ -206,8 +207,16 @@ export function createContentSection({ db, getUser, getIdToken }) {
     state.viewingHistory = null;
     $("content-history-view").hidden = true;
     refreshValidation();
+    refreshIntroNote();
     setStatus();
     preview?.update(state.data);
+  }
+
+  // Thiệp (v2/card.js renderIntro) có Câu dẫn thì chỉ hiện Câu dẫn: nhắc ở ô Lời ngỏ rằng nó đang không hiện.
+  function refreshIntroNote() {
+    if (!introNote) return;
+    const intro = state.data.wedding?.introText;
+    introNote.hidden = !(typeof intro === "string" && intro.trim());
   }
 
   // ---------- Ô nhập ----------
@@ -586,6 +595,9 @@ export function createContentSection({ db, getUser, getIdToken }) {
 
     const texts = group(body, "Lời ngỏ & lời cảm ơn");
     linesField(texts, { path: "wedding.invitationText", label: "Lời ngỏ", hint: "Mỗi dòng là một đoạn." });
+    introNote = el("div", "form-text text-warning-emphasis content-intro-note",
+      "Thiệp đang không hiện Lời ngỏ vì ô “Câu dẫn” bên dưới đang có chữ (thiệp chỉ hiện Câu dẫn). Xoá Câu dẫn để hiện Lời ngỏ.");
+    fields.get("wedding.invitationText").feedback.before(introNote);
     textField(texts, { path: "wedding.introText", label: "Câu dẫn", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu ngay trên đồng hồ đếm ngược. Bỏ trống thì hiện lời ngỏ (mục Lời ngỏ); không có lời ngỏ thì dùng câu mặc định." });
     textField(texts, { path: "wedding.thanksText", label: "Lời cảm ơn", multiline: true, rows: 2, optional: true, hint: "Tuỳ chọn: câu dưới chữ “Thank you” cuối thiệp. Bỏ trống thì dùng câu mặc định." });
   }
@@ -865,6 +877,7 @@ export function createContentSection({ db, getUser, getIdToken }) {
     renderMeta(form);
     form.querySelector("details.content-section")?.setAttribute("open", "");
     refreshValidation();
+    refreshIntroNote();
   }
 
   // ---------- Xem trước ----------

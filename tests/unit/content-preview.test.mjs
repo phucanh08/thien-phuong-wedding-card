@@ -25,8 +25,18 @@ function fakeDom() {
         contentDocument: { open() {}, write(html) { written.push(html); }, close() {} },
         contentWindow: {
           scrollY: 0,
+          innerHeight: 800,
           scrollTo() {},
-          document: { documentElement: { dataset: { contentSource: "published" }, classList: { contains: () => false } } },
+          getComputedStyle: () => ({}),
+          document: {
+            documentElement: { dataset: { contentSource: "published" }, classList: { contains: () => false } },
+            head: { append() {} },
+            body: {},
+            images: [],
+            fonts: { status: "loaded" },
+            createElement: () => ({ remove() {} }),
+            querySelectorAll: () => [],
+          },
         },
       };
       frames.push(frame);
